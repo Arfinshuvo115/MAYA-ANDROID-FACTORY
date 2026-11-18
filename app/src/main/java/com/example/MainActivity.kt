@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -32,11 +33,16 @@ import com.example.util.SpeechRecognizerHelper
 
 class MainActivity : ComponentActivity() {
 
+    private val openAndroidIdeRequestId = MutableStateFlow(0)
+
     private lateinit var speechHelper: SpeechHelper
     private lateinit var speechRecognizerHelper: SpeechRecognizerHelper
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.action == MayaAppCommandRouter.ACTION_OPEN_ANDROID_IDE) {
+            openAndroidIdeRequestId.value += 1
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT)
@@ -100,6 +106,7 @@ class MainActivity : ComponentActivity() {
         )[SettingsViewModel::class.java]
 
         setContent {
+            val ideRequestId by openAndroidIdeRequestId.collectAsStateWithLifecycle()
             val prefs by settingsViewModel.preferences.collectAsStateWithLifecycle(
                 initialValue = UserPreferences()
             )
@@ -124,6 +131,7 @@ class MainActivity : ComponentActivity() {
             MayaTheme(themeMode = prefs.themeMode) {
                 MayaAppShell(
                     aiRepository = aiRepository,
+                    openAndroidIdeRequestId = ideRequestId,
                     chatViewModel = chatViewModel,
                     voiceViewModel = voiceViewModel,
                     toolsViewModel = toolsViewModel,
@@ -131,6 +139,14 @@ class MainActivity : ComponentActivity() {
                     settingsViewModel = settingsViewModel
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == MayaAppCommandRouter.ACTION_OPEN_ANDROID_IDE) {
+            openAndroidIdeRequestId.value += 1
         }
     }
 
