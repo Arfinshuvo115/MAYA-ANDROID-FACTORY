@@ -46,8 +46,6 @@ object TermuxBuildBridge {
             putExtra("com.termux.RUN_COMMAND_WORKDIR", request.workingDirectory)
             putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
             putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
-            putExtra("com.termux.RUN_COMMAND_LABEL", "Maya Android debug build")
-            putExtra("com.termux.RUN_COMMAND_DESCRIPTION", "Runs Gradle assembleDebug in the selected Android project.")
         }
         context.startService(intent)
     }
