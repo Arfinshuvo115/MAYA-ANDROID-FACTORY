@@ -40,6 +40,7 @@ import com.example.domain.model.MayaPersona
 import com.example.domain.model.ResponseLength
 import com.example.missioncontrol.android.MayaAccessibilityService
 import com.example.missioncontrol.android.TermuxBuildBridge
+import com.example.missioncontrol.android.MayaOfflineTaskQueue
 import com.example.missioncontrol.android.TermuxBuildState
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -122,6 +123,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var projectTreeUri by rememberSaveable { mutableStateOf<String?>(null) }
     val projectFiles = remember { mutableStateListOf<ProjectSourceEntry>() }
     val visibleControls = remember { mutableStateListOf<String>() }
+    val offlineTasks = remember { mutableStateListOf<MayaOfflineTaskQueue.Task>() }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf("") }
     var codeText by rememberSaveable { mutableStateOf("") }
@@ -395,6 +397,42 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     enabled = projectTreeUri != null,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Run Gradle assembleDebug in Termux") }
+                OutlinedButton(
+                    onClick = {
+                        val request = buildRequest
+                        when {
+                            request == null -> status = "Select a primary shared-storage project folder first."
+                            !TermuxBuildBridge.hasTermux(context) -> status = "Termux is not installed."
+                            !TermuxBuildBridge.hasRunCommandPermission(context) -> {
+                                status = "Grant MAYA the Termux Run Command permission, then retry."
+                                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+                            }
+                            else -> MayaOfflineTaskQueue.enqueueOfflineBuild(context, request.workingDirectory)
+                                .onSuccess { id ->
+                                    offlineTasks.clear()
+                                    offlineTasks.addAll(MayaOfflineTaskQueue.list(context))
+                                    status = "Offline build queued with ID " + id + ". Android may run it after MAYA leaves the screen; execution timing is controlled by Android."
+                                }
+                                .onFailure { status = "Could not queue offline build: " + (it.localizedMessage ?: "unknown error") }
+                        }
+                    },
+                    enabled = buildRequest != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Queue build for background / offline execution") }
+                OutlinedButton(
+                    onClick = {
+                        offlineTasks.clear()
+                        offlineTasks.addAll(MayaOfflineTaskQueue.list(context))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Refresh background task history") }
+                offlineTasks.forEach { task ->
+                    Text(
+                        task.label + " — " + task.status + "\n" + task.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (task.status == "FAILED") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 OutlinedButton(
                     onClick = {
                         when {
