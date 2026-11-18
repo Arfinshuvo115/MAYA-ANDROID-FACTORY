@@ -335,8 +335,23 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     enabled = projectTreeUri != null,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Run Gradle assembleDebug in Termux") }
+                OutlinedButton(
+                    onClick = {
+                        when {
+                            !TermuxBuildBridge.hasTermux(context) -> status = "Termux is not installed."
+                            !TermuxBuildBridge.hasRunCommandPermission(context) -> {
+                                status = "Grant MAYA the Termux Run Command permission in App Info, then retry."
+                                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+                            }
+                            else -> TermuxBuildBridge.requestLogcatSnapshot(context)
+                                .onSuccess { status = "Logcat snapshot requested. Waiting for Termux output." }
+                                .onFailure { status = "Logcat request failed: " + (it.localizedMessage ?: "unknown error") }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Capture available Android Logcat") }
                 Text(
-                    "Prerequisites: Termux installed, Termux Settings > allow-external-apps=true, and Android Settings > MAYA > Additional permissions > Run commands in Termux environment. Build execution is user-triggered; MAYA does not report success until a real result is received.",
+                    "Prerequisites: Termux installed, Termux Settings > allow-external-apps=true, Termux storage permission plus termux-setup-storage for shared files, Android SDK/JDK configured in Termux for Gradle, and Android Settings > MAYA > Additional permissions > Run commands in Termux environment. Android may restrict which system logs Termux can read. Build execution is user-triggered; MAYA reports the actual callback result.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
