@@ -137,6 +137,13 @@ class VoiceViewModel(
         speechRecognizerHelper.clearError()
     }
 
+    private fun isVideoProductionRequest(text: String): Boolean {
+        val normalized = text.lowercase()
+        val mentionsVideo = normalized.contains("ভিডিও") || normalized.contains("video")
+        val asksToCreate = listOf("বানাও", "তৈরি", "করো", "স্ক্রিপ্ট", "make", "create", "generate", "script")
+            .any(normalized::contains)
+        return mentionsVideo && asksToCreate
+    }
     private fun triggerVoiceInteractionResponse(spokenQuery: String) {
         _lastSpokenQuery.value = spokenQuery
         _inputText.value = spokenQuery
@@ -162,8 +169,22 @@ class VoiceViewModel(
                     )
                     return@launch
                 }
+                val videoRequest = isVideoProductionRequest(spokenQuery)
+                val effectivePrompt = if (videoRequest) {
+                    listOf(
+                        "You are Maya, the user's video production manager. The user asked:",
+                        spokenQuery,
+                        "Create a complete, practical video production script in the same language as the user's request.",
+                        "Include: title and concept; target audience and platform assumption; a strong opening hook;",
+                        "complete narration/dialogue; 6-10 numbered scenes with timestamps, visual direction, camera framing,",
+                        "on-screen text and sound/music direction; subtitles/captions; thumbnail concept; production checklist.",
+                        "If duration or platform is unspecified, state reasonable assumptions.",
+                        "Never claim a video file has been rendered, exported, uploaded, or published.",
+                        "Clearly state that this is the script/production plan only; actual rendering requires a connected video-generation service."
+                    ).joinToString("\\n")
+                } else spokenQuery
                 aiRepository.streamChatReply(
-                    prompt = spokenQuery,
+                    prompt = effectivePrompt,
                     persona = MayaPersona.ASSISTANT,
                     history = emptyList(),
                     imageUri = null,
