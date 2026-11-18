@@ -96,6 +96,10 @@ fun MissionControlScreen(modifier: Modifier = Modifier) {
     var selectedPageId by remember { mutableStateOf("dashboard") }
     var searchQuery by remember { mutableStateOf("") }
     val selectedPage = missionControlPages.first { it.id == selectedPageId }
+    if (selectedPageId == "appfactory") {
+        AndroidIdeCodingAgentScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
