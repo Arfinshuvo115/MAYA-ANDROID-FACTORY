@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
             }
             MayaTheme(themeMode = prefs.themeMode) {
                 MayaAppShell(
+                    aiRepository = aiRepository,
                     chatViewModel = chatViewModel,
                     voiceViewModel = voiceViewModel,
                     toolsViewModel = toolsViewModel,
