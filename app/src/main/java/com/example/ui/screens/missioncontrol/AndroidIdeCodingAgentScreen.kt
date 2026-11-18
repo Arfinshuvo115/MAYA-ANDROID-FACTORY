@@ -48,6 +48,28 @@ import java.io.IOException
 
 private data class ProjectSourceEntry(val name: String, val relativePath: String, val uri: Uri, val isDirectory: Boolean)
 
+private data class BuildDiagnosticLocation(
+    val path: String,
+    val line: Int,
+    val column: Int?,
+    val message: String
+)
+
+private fun findBuildDiagnostic(output: String): BuildDiagnosticLocation? {
+    val locationPattern = Regex("""(?:^|[\\s(])((?:[A-Za-z]:)?[^\\s():]+?\\.(?:kt|java|xml|kts|gradle)):(\\d+)(?::(\\d+))?""")
+    for (line in output.lineSequence()) {
+        val match = locationPattern.find(line) ?: continue
+        val rawPath = match.groupValues[1].removePrefix("file://").replace('\\\\', '/')
+        return BuildDiagnosticLocation(
+            path = rawPath,
+            line = match.groupValues[2].toIntOrNull() ?: 1,
+            column = match.groupValues[3].takeIf { it.isNotBlank() }?.toIntOrNull(),
+            message = line.trim().take(500)
+        )
+    }
+    return null
+}
+
 private fun readProjectTree(context: Context, treeUri: Uri, maxEntries: Int = 250): List<ProjectSourceEntry> {
     val entries = mutableListOf<ProjectSourceEntry>()
     val projection = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE)
@@ -107,6 +129,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var visibleFieldLabel by rememberSaveable { mutableStateOf("") }
     var visibleFieldValue by rememberSaveable { mutableStateOf("") }
     var status by rememberSaveable { mutableStateOf("Choose your Android project folder to begin.") }
+    var detectedErrorFile by rememberSaveable { mutableStateOf("") }
+    var detectedErrorLine by rememberSaveable { mutableStateOf(0) }
 
     val chooseFolder = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -179,6 +203,36 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         } catch (error: Exception) {
             status = "Save failed: ${error.localizedMessage ?: "unknown error"}"
         }
+    }
+
+
+    fun openDetectedBuildErrorFile() {
+        val tree = projectTreeUri?.let(Uri::parse)
+        val diagnosticPath = detectedErrorFile.replace('\\\\', '/').trim()
+        if (tree == null || diagnosticPath.isBlank()) {
+            status = "Choose the project folder and capture a build diagnostic first."
+            return
+        }
+        val match = projectFiles.firstOrNull { entry ->
+            !entry.isDirectory && (
+                diagnosticPath.endsWith(entry.relativePath, ignoreCase = true) ||
+                entry.relativePath.endsWith(diagnosticPath.substringAfterLast('/'), ignoreCase = true)
+            )
+        }
+        if (match == null) {
+            status = "Build reported $diagnosticPath, but that file is not in the indexed project tree. Refresh the tree or open it with the file picker."
+            return
+        }
+        runCatching {
+            val source = context.contentResolver.openInputStream(match.uri)
+                ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                ?: throw IOException("Could not read the diagnostic file.")
+            if (source.length > 200000) throw IOException("Diagnostic file exceeds the 200 KB editor limit.")
+            codeText = source
+            fileUri = match.uri.toString()
+            fileName = match.relativePath
+            status = "Opened ${match.relativePath} at reported line $detectedErrorLine. Review that line before asking Maya to edit."
+        }.onFailure { status = "Could not open diagnostic file: " + (it.localizedMessage ?: "unknown error") }
     }
 
     fun createInProjectFolder() {
@@ -364,6 +418,22 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     )
                     if (output.errorMessage.isNotBlank()) Text(output.errorMessage, style = MaterialTheme.typography.bodySmall)
                     val diagnostics = (output.stderr + "\n" + output.stdout).trim().takeLast(7000)
+                    val buildLocation = findBuildDiagnostic(output.stderr + "\n" + output.stdout)
+                    if (buildLocation != null) {
+                        detectedErrorFile = buildLocation.path
+                        detectedErrorLine = buildLocation.line
+                        Text("Detected source location: ${buildLocation.path}:${buildLocation.line}" +
+                            (buildLocation.column?.let { ":$it" } ?: ""), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error)
+                        Text(buildLocation.message, style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(
+                            onClick = ::openDetectedBuildErrorFile,
+                            enabled = projectTreeUri != null,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Open detected error file") }
+                    } else {
+                        Text("No source file and line number could be extracted from this output. Use the diagnostics below to locate the failing task.", style = MaterialTheme.typography.bodySmall)
+                    }
                     if (diagnostics.isNotBlank()) {
                         Text(diagnostics, style = MaterialTheme.typography.bodySmall)
                     }
@@ -591,7 +661,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed suggestions, user-triggered IDE controls and Termux Gradle build handoff for shared-storage projects. Termux build stdout/stderr and exit-code capture are connected. Maya can now prepare a bounded whole-project unified patch and apply it only after explicit approval. Automatic error-file navigation and Logcat integration remain future stages.",
+            "Current stage: bounded project indexing, single-file editing, reviewed multi-file patches, Termux Gradle/Logcat handoff, and automatic source path:line extraction from build output. When a matching file exists in the indexed tree, Maya can open it directly. Full IDE-specific navigation, private IDE storage access and unrestricted repository context are not available.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
