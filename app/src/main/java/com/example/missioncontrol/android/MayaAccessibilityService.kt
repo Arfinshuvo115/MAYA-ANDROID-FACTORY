@@ -8,9 +8,9 @@ import android.view.accessibility.AccessibilityNodeInfo
 /**
  * User-enabled Android accessibility bridge.
  *
- * This service deliberately does not inspect, persist, or upload screen contents.
- * Actions are exposed only as explicit methods; callers must obtain user approval
- * before invoking an action.
+ * This service does not collect accessibility events or persist/upload screen contents.
+ * It inspects only the currently visible accessibility tree when an explicit user-
+ * initiated action calls one of its methods.
  */
 class MayaAccessibilityService : AccessibilityService() {
     companion object {
