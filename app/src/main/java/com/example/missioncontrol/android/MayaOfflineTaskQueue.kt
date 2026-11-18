@@ -115,15 +115,24 @@ object MayaOfflineTaskQueue {
             }
         }
         write(context, data)
-        schedule(context)
+        scheduleNext(context)
     }
 
-    fun schedule(context: Context): Boolean {
+    @Synchronized private fun scheduleNext(context: Context) {
+        val tasks = list(context)
+        if (tasks.any { it.status == "QUEUED" }) {
+            schedule(context, 0L)
+        } else if (tasks.any { it.status == "RUNNING" }) {
+            schedule(context, RUNNING_LEASE_MS)
+        }
+    }
+
+    fun schedule(context: Context, delayMillis: Long = 0L): Boolean {
         val scheduler = context.getSystemService(JobScheduler::class.java) ?: return false
         val job = JobInfo.Builder(JOB_ID, ComponentName(context, MayaOfflineTaskJobService::class.java))
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
             .setPersisted(true)
-            .setMinimumLatency(0)
+            .setMinimumLatency(delayMillis.coerceAtLeast(0L))
             .build()
         return scheduler.schedule(job) == JobScheduler.RESULT_SUCCESS
     }
@@ -146,6 +155,9 @@ object MayaOfflineTaskQueue {
             putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", result)
         }
         context.startService(intent)
+        check(schedule(context, RUNNING_LEASE_MS)) {
+            "Could not schedule recovery for a missing Termux callback."
+        }
     }
 }
 
