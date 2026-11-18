@@ -35,6 +35,41 @@ class MayaAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
+
+    /**
+     * Returns labels for currently visible clickable/editable controls.
+     * This tree is inspected only when the user presses the explicit Inspect button.
+     */
+    fun getVisibleControlLabels(maxItems: Int = 60): List<String> {
+        val root = rootInActiveWindow ?: return emptyList()
+        val labels = linkedSetOf<String>()
+        fun visit(node: AccessibilityNodeInfo, depth: Int) {
+            if (depth > 20 || labels.size >= maxItems || !node.isVisibleToUser) return
+            if (node.isEnabled && (node.isClickable || node.isEditable)) {
+                val label = node.text?.toString()?.takeIf { it.isNotBlank() }
+                    ?: node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+                    ?: node.hintText?.toString()?.takeIf { it.isNotBlank() }
+                    ?: node.viewIdResourceName?.takeIf { it.isNotBlank() }
+                if (label != null) labels.add(label.take(100))
+            }
+            for (index in 0 until node.childCount) {
+                if (labels.size >= maxItems) break
+                val child = node.getChild(index) ?: continue
+                try {
+                    visit(child, depth + 1)
+                } finally {
+                    child.recycle()
+                }
+            }
+        }
+        return try {
+            visit(root, 0)
+            labels.toList()
+        } finally {
+            root.recycle()
+        }
+    }
+
     /** Set text in a visible editable node matched by its accessible text or hint. */
     fun setTextInVisibleField(label: String, value: String): Boolean {
         val cleanLabel = label.trim()
