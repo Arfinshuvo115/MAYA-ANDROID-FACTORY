@@ -93,8 +93,8 @@ private val missionControlPages = listOf(
 )
 
 @Composable
-fun MissionControlScreen(aiRepository: AiRepository, modifier: Modifier = Modifier) {
-    var selectedPageId by remember { mutableStateOf("dashboard") }
+fun MissionControlScreen(aiRepository: AiRepository, initialPageRequestId: Int = 0, modifier: Modifier = Modifier) {
+    var selectedPageId by remember(initialPageRequestId) { mutableStateOf(if (initialPageRequestId > 0) "appfactory" else "dashboard") }
     var searchQuery by remember { mutableStateOf("") }
     val selectedPage = missionControlPages.first { it.id == selectedPageId }
     if (selectedPageId == "appfactory") {
