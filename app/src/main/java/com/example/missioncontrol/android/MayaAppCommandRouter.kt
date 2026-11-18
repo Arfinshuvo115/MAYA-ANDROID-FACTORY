@@ -53,6 +53,28 @@ class MayaAppCommandRouter(context: Context) {
      */
     fun execute(command: String): String? {
         val normalized = command.trim().replace(Regex("\\s+"), " ")
+        val openInstalledIde = listOf(
+            Regex("^(open|launch|start)\\s+(android studio|android ide|androidide|codeassist|aide)$", RegexOption.IGNORE_CASE),
+            Regex("^(অ্যান্ড্রয়েড স্টুডিও|অ্যান্ড্রয়েড আইডিই|কোডঅ্যাসিস্ট)\\s*(খোলো|চালু করো|ওপেন করো)$", RegexOption.IGNORE_CASE)
+        ).any { it.matches(normalized) }
+        if (openInstalledIde) {
+            val packages = listOf("com.m.androidide", "com.itsaky.androidide", "com.tyron.code", "com.aide.ui")
+            val launchIntent = packages.firstNotNullOfOrNull { appContext.packageManager.getLaunchIntentForPackage(it) }
+            return if (launchIntent == null) {
+                if (normalized.any { it.code in 2432..2559 }) "এই ফোনে সমর্থিত Android IDE ইনস্টল করা নেই।"
+                else "No supported Android IDE is installed on this phone."
+            } else {
+                try {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    appContext.startActivity(launchIntent)
+                    if (normalized.any { it.code in 2432..2559 }) "Android IDE খুলছি।"
+                    else "Opening your installed Android IDE."
+                } catch (_: Exception) {
+                    if (normalized.any { it.code in 2432..2559 }) "Android IDE খোলা যায়নি।"
+                    else "Could not open the installed Android IDE."
+                }
+            }
+        }
         val openCodingAgent = listOf(
             Regex("^(open|launch|start)\\s+(maya\\s+)?(android\\s+)?(ide|coding agent|app factory|android app factory)$", RegexOption.IGNORE_CASE),
             Regex("^(মায়া কোডিং এজেন্ট|অ্যান্ড্রয়েড কোডিং এজেন্ট|অ্যাপ ফ্যাক্টরি)\\s*(খোলো|চালু করো|ওপেন করো)$", RegexOption.IGNORE_CASE)
