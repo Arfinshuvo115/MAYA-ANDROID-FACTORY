@@ -93,13 +93,13 @@ object MayaOfflineProjectAuditor {
         lines.forEachIndexed { index, raw ->
             val line = raw.trim()
             val number = index + 1
-            if (Regex("""\\b(TODO|FIXME)\\b""", RegexOption.IGNORE_CASE).containsMatchIn(line)) {
+            if (Regex("""\b(TODO|FIXME)\b""", RegexOption.IGNORE_CASE).containsMatchIn(line)) {
                 findings.add("$path:$number contains a TODO/FIXME marker.")
             }
-            if (Regex("""(?i)(api[_-]?key|secret|token)\\s*[:=]\\s*["'][A-Za-z0-9_./+=-]{16,}["']""").containsMatchIn(line)) {
+            if (Regex("""(?i)(api[_-]?key|secret|token)\s*[:=]\s*["'][A-Za-z0-9_./+=-]{16,}["']""").containsMatchIn(line)) {
                 findings.add("$path:$number may contain a hard-coded credential. Value intentionally omitted; rotate it if real.")
             }
-            if (Regex("""catch\\s*\\([^)]*\\)\\s*\\{\\s*}""").containsMatchIn(line)) {
+            if (Regex("""catch\s*\\([^)]*\\)\s*\\{\s*}""").containsMatchIn(line)) {
                 findings.add("$path:$number contains an empty catch block that may hide failures.")
             }
             if (line.contains("GlobalScope.launch")) {
