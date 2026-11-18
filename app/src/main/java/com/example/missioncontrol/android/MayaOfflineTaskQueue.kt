@@ -74,7 +74,7 @@ object MayaOfflineTaskQueue {
             put("detail", "Queued locally. This static audit does not need internet or a cloud model.")
         })
         write(context, data)
-        schedule(context)
+        check(schedule(context)) { "Android could not schedule the offline audit." }
         id
     }
 
@@ -86,6 +86,12 @@ object MayaOfflineTaskQueue {
             val staleRunning = status == "RUNNING" &&
                 System.currentTimeMillis() - o.optLong("lastAttemptAt", System.currentTimeMillis()) >= RUNNING_LEASE_MS
             if (status == "QUEUED" || staleRunning) {
+                if (staleRunning && o.optInt("attempts", 0) >= 3) {
+                    o.put("status", "FAILED")
+                    o.put("detail", "Task stopped responding after 3 attempts; review the device and re-queue manually.")
+                    write(context, data)
+                    continue
+                }
                 o.put("status", "RUNNING")
                 o.put("attempts", o.optInt("attempts", 0) + 1)
                 o.put("lastAttemptAt", System.currentTimeMillis())
