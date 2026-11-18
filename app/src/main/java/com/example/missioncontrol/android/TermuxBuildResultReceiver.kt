@@ -11,7 +11,8 @@ data class TermuxBuildOutput(
     val stdout: String,
     val stderr: String,
     val internalError: Int,
-    val errorMessage: String
+    val errorMessage: String,
+    val commandLabel: String
 ) {
     val succeeded: Boolean get() = exitCode == 0 && internalError == -1
 }
@@ -32,7 +33,8 @@ class TermuxBuildResultReceiver : BroadcastReceiver() {
                 stdout = result.getString("stdout").orEmpty().takeLast(50000),
                 stderr = result.getString("stderr").orEmpty().takeLast(50000),
                 internalError = result.getInt("err", -1),
-                errorMessage = result.getString("errmsg").orEmpty()
+                errorMessage = result.getString("errmsg").orEmpty(),
+                commandLabel = intent.getStringExtra("maya_command_label") ?: "Termux command"
             )
         )
     }
