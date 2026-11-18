@@ -66,8 +66,8 @@ private fun findBuildDiagnostic(output: String): BuildDiagnosticLocation? {
         val columnNumber = kotlinMatch?.groupValues?.get(3) ?: standardMatch?.groupValues?.get(3)
         return BuildDiagnosticLocation(
             path = path.removePrefix("file://").replace('\\', '/'),
-            line = lineNumber.toIntOrNull() ?: 1,
-            column = columnNumber.takeIf { it.isNotBlank() }?.toIntOrNull(),
+            line = lineNumber?.toIntOrNull() ?: 1,
+            column = columnNumber?.takeIf { it.isNotBlank() }?.toIntOrNull(),
             message = line.trim().take(500)
         )
     }
