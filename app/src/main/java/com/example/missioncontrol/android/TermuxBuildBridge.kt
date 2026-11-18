@@ -24,7 +24,7 @@ object TermuxBuildBridge {
         if (!root.path.startsWith(sharedRoot.path + File.separator)) return null
         return BuildRequest(
             workingDirectory = root.absolutePath,
-            command = "if [ ! -f ./gradlew ]; then echo 'ERROR: gradlew not found in selected project root'; exit 2; fi; chmod +x ./gradlew && ./gradlew assembleDebug"
+            command = "if [ ! -f ./gradlew ]; then echo 'ERROR: gradlew not found in selected project root'; exit 2; fi; bash ./gradlew assembleDebug"
         )
     }
 
