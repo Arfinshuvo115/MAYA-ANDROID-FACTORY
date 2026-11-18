@@ -145,6 +145,82 @@ class GeminiRestClient(private val context: Context) {
         }
     }.flowOn(Dispatchers.IO)
 
+
+    suspend fun synthesizeSpeech(
+        apiKey: String,
+        text: String,
+        voiceName: String,
+        style: String,
+        languageCode: String
+    ): Result<ByteArray> = withContext(Dispatchers.IO) {
+        val cleanedKey = apiKey.trim()
+        if (cleanedKey.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
+        }
+        var connection: HttpURLConnection? = null
+        try {
+            val requestPayload = buildJsonObject {
+                putJsonArray("contents") {
+                    add(buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("parts") {
+                            add(buildJsonObject {
+                                put("text", text)
+                                putJsonObject("speechMetadata") {
+                                    put("style", style)
+                                }
+                            })
+                        }
+                    })
+                }
+                putJsonObject("generationConfig") {
+                    putJsonArray("responseModalities") { add(kotlinx.serialization.json.JsonPrimitive("AUDIO")) }
+                    putJsonObject("speechConfig") {
+                        put("languageCode", languageCode)
+                        putJsonObject("voiceConfig") {
+                            putJsonObject("prebuiltVoiceConfig") {
+                                put("voiceName", voiceName)
+                            }
+                        }
+                    }
+                }
+            }
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent")
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = 15_000
+                readTimeout = 60_000
+                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("x-goog-api-key", cleanedKey)
+            }
+            connection.outputStream.use { out ->
+                out.write(requestPayload.toString().toByteArray(Charsets.UTF_8))
+            }
+            val code = connection.responseCode
+            val body = readResponseBody(connection, isError = code !in 200..299)
+            if (code !in 200..299) {
+                return@withContext Result.failure(IllegalStateException(extractErrorMessage(body, code)))
+            }
+            val audioBase64 = runCatching {
+                json.parseToJsonElement(body).jsonObject["candidates"]?.jsonArray
+                    ?.firstOrNull()?.jsonObject?.get("content")?.jsonObject
+                    ?.get("parts")?.jsonArray?.firstNotNullOfOrNull { part ->
+                        part.jsonObject["inlineData"]?.jsonObject?.get("data")?.jsonPrimitive?.contentOrNull
+                    }
+            }.getOrNull()
+            if (audioBase64.isNullOrBlank()) {
+                Result.failure(IllegalStateException("Gemini TTS returned no audio data."))
+            } else {
+                Result.success(Base64.decode(audioBase64, Base64.DEFAULT))
+            }
+        } catch (e: Exception) {
+            Result.failure(IllegalStateException(e.localizedMessage ?: "Gemini TTS request failed."))
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     suspend fun generateText(
         apiKey: String,
         modelId: String,
