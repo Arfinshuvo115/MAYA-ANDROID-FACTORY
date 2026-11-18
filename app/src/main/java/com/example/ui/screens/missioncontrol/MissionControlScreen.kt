@@ -1,5 +1,6 @@
 package com.example.ui.screens.missioncontrol
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +15,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.JarvisSectionHeader
@@ -54,13 +59,87 @@ private val missionControlModules = listOf(
     "n8n workflow integration"
 )
 
+private data class MissionPage(val id: String, val title: String, val group: String, val purpose: String)
+
+private val missionControlPages = listOf(
+    MissionPage("dashboard", "Dashboard", "COMMAND", "Overview of system status, mission activity and agent workload"),
+    MissionPage("features", "Feature Hub", "COMMAND", "Directory of all available Mission Control capabilities"),
+    MissionPage("maya", "Maya Command", "COMMAND", "Natural-language command entry and command routing"),
+    MissionPage("missions", "Mission Center", "COMMAND", "Create, inspect, pause and resume missions"),
+    MissionPage("agents", "Agent Workforce", "COMMAND", "Specialist agent roster, assignments and status"),
+    MissionPage("agentflow", "8-Agent Pipeline", "COMMAND", "Planner, research, development, QA and review handoffs"),
+    MissionPage("office", "3D AI Agent Office", "COMMAND", "Agent workspace and activity visualization"),
+    MissionPage("workspace", "Workspace", "BUILD & CREATE", "Project workspace and working files"),
+    MissionPage("deliverables", "My Work & Results", "BUILD & CREATE", "Completed work, deliverables and review history"),
+    MissionPage("appfactory", "Android App Factory", "BUILD & CREATE", "Android project creation and build management"),
+    MissionPage("termux", "Termux Build Center", "BUILD & CREATE", "Local Termux bridge and Android build commands"),
+    MissionPage("webfactory", "Website Factory", "BUILD & CREATE", "Website project generation and management"),
+    MissionPage("studio", "Media Studio", "BUILD & CREATE", "Image, audio and video creation tools"),
+    MissionPage("production", "Production Studio", "BUILD & CREATE", "Media production pipelines and generated assets"),
+    MissionPage("automation", "Visual Automation", "AUTOMATION & INTELLIGENCE", "Visual workflows and browser automation"),
+    MissionPage("voice", "Voice Center", "AUTOMATION & INTELLIGENCE", "Speech input, multilingual responses and voice output"),
+    MissionPage("socialcontrol", "Voice & App Control", "AUTOMATION & INTELLIGENCE", "Voice-triggered Android app launch and approved device actions"),
+    MissionPage("memory", "Mission Memory", "AUTOMATION & INTELLIGENCE", "Long-term memory and mission context"),
+    MissionPage("sources", "Source Intelligence", "AUTOMATION & INTELLIGENCE", "Research sources, evidence and source analysis"),
+    MissionPage("marketplaces", "Freelance & Amazon Hub", "AUTOMATION & INTELLIGENCE", "Freelance opportunities, proposals and Amazon workflows"),
+    MissionPage("wallet", "Wallet & Withdrawals", "AUTOMATION & INTELLIGENCE", "Earnings ledger, receipts and withdrawal records"),
+    MissionPage("analytics", "Analytics", "AUTOMATION & INTELLIGENCE", "Mission, agent and project performance metrics"),
+    MissionPage("brain", "AI Brain & Models", "CONTROL", "AI providers, model selection and connection status"),
+    MissionPage("security", "Security Center", "CONTROL", "Authentication, permissions and security controls"),
+    MissionPage("settings", "Settings", "CONTROL", "Application preferences and integration settings"),
+    MissionPage("systemhealth", "System Health", "CONTROL", "Service health, diagnostics and connection checks")
+)
+
 @Composable
 fun MissionControlScreen(modifier: Modifier = Modifier) {
+    var selectedPageId by remember { mutableStateOf("dashboard") }
+    val selectedPage = missionControlPages.first { it.id == selectedPageId }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item {
+            Text("Mission Control tabs • ${missionControlPages.size}", style = MaterialTheme.typography.titleLarge)
+        }
+        items(missionControlPages.groupBy { it.group }.toList()) { (group, pages) ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(group, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                pages.forEach { page ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedPageId = page.id },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedPageId == page.id) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(page.title, style = MaterialTheme.typography.titleSmall)
+                                Text(page.purpose, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Selected tab: ${selectedPage.title}", style = MaterialTheme.typography.titleMedium)
+                    Text(selectedPage.purpose, style = MaterialTheme.typography.bodyMedium)
+                    Text("Navigation and screen catalogue transferred. This tab's full data/actions are being ported separately; no live operation is claimed until its API and permissions are connected.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
         item {
             JarvisSectionHeader(
                 telemetryCode = "MISSION CONTROL // WORKFORCE",
