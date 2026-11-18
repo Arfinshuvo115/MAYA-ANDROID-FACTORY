@@ -12,6 +12,12 @@ import android.os.Build
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /** Persistent queue for on-device tasks that do not require network access. */
 object MayaOfflineTaskQueue {
@@ -53,6 +59,10 @@ object MayaOfflineTaskQueue {
 
     @Synchronized fun enqueueOfflineAudit(context: Context, treeUri: String): Result<String> = runCatching {
         require(treeUri.startsWith("content://")) { "Choose a project folder using the Android folder picker first." }
+        val selectedUri = android.net.Uri.parse(treeUri)
+        require(context.contentResolver.persistedUriPermissions.any {
+            it.uri == selectedUri && it.isReadPermission
+        }) { "Android has not granted persistent folder access. Re-select the folder and allow access." }
         val id = UUID.randomUUID().toString()
         val data = read(context)
         data.put(JSONObject().apply {
@@ -133,29 +143,59 @@ object MayaOfflineTaskQueue {
 
 /** JobScheduler persists the scheduled job across process death and device reboot. */
 class MayaOfflineTaskJobService : JobService() {
+    private var taskScope: CoroutineScope? = null
+    private var runningJob: Job? = null
+
     override fun onStartJob(params: JobParameters): Boolean {
-        val task = MayaOfflineTaskQueue.nextQueued(this) ?: return false
-        if (task.type == "OFFLINE_PROJECT_AUDIT") {
-            runCatching {
-                val report = MayaOfflineProjectAuditor.run(this, android.net.Uri.parse(task.projectPath))
-                MayaOfflineTaskQueue.finish(this, task.id, true, report.asText())
-            }.onFailure {
-                MayaOfflineTaskQueue.finish(this, task.id, false, "Offline audit failed: " + (it.localizedMessage ?: "unknown error"))
+        taskScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        runningJob = taskScope?.launch {
+            val task = MayaOfflineTaskQueue.nextQueued(this@MayaOfflineTaskJobService)
+            if (task == null) {
+                jobFinished(params, false)
+                return@launch
             }
-            return false
+            if (task.type == "OFFLINE_PROJECT_AUDIT") {
+                runCatching {
+                    val report = MayaOfflineProjectAuditor.run(
+                        this@MayaOfflineTaskJobService,
+                        android.net.Uri.parse(task.projectPath)
+                    )
+                    MayaOfflineTaskQueue.finish(this@MayaOfflineTaskJobService, task.id, true, report.asText())
+                }.onFailure {
+                    MayaOfflineTaskQueue.finish(
+                        this@MayaOfflineTaskJobService, task.id, false,
+                        "Offline audit failed: " + (it.localizedMessage ?: "unknown error")
+                    )
+                }
+            } else if (task.type == "OFFLINE_GRADLE_BUILD") {
+                if (!TermuxBuildBridge.hasTermux(this@MayaOfflineTaskJobService) ||
+                    !TermuxBuildBridge.hasRunCommandPermission(this@MayaOfflineTaskJobService)
+                ) {
+                    MayaOfflineTaskQueue.finish(
+                        this@MayaOfflineTaskJobService, task.id, false,
+                        "Termux or its Run Command permission is unavailable."
+                    )
+                } else {
+                    MayaOfflineTaskQueue.dispatch(this@MayaOfflineTaskJobService, task).onFailure {
+                        MayaOfflineTaskQueue.finish(
+                            this@MayaOfflineTaskJobService, task.id, false,
+                            it.localizedMessage ?: "Termux dispatch failed."
+                        )
+                    }
+                }
+            } else {
+                MayaOfflineTaskQueue.finish(this@MayaOfflineTaskJobService, task.id, false, "Unsupported task type.")
+            }
+            jobFinished(params, false)
         }
-        if (task.type != "OFFLINE_GRADLE_BUILD") {
-            MayaOfflineTaskQueue.finish(this, task.id, false, "Unsupported task type.")
-            return false
-        }
-        if (!TermuxBuildBridge.hasTermux(this) || !TermuxBuildBridge.hasRunCommandPermission(this)) {
-            MayaOfflineTaskQueue.finish(this, task.id, false, "Termux or its Run Command permission is unavailable.")
-            return false
-        }
-        MayaOfflineTaskQueue.dispatch(this, task).onFailure {
-            MayaOfflineTaskQueue.finish(this, task.id, false, it.localizedMessage ?: "Termux dispatch failed.")
-        }
-        return false
+        return true
     }
-    override fun onStopJob(params: JobParameters): Boolean = true
+
+    override fun onStopJob(params: JobParameters): Boolean {
+        runningJob?.cancel()
+        taskScope?.cancel()
+        runningJob = null
+        taskScope = null
+        return true
+    }
 }
