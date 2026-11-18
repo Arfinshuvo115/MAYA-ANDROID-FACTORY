@@ -298,7 +298,15 @@ fun MayaAppShell(
                             )
                         }
                         composable<MissionControlRoute> {
-                            MissionControlScreen(aiRepository = aiRepository, initialPageRequestId = openAndroidIdeRequestId)
+                            MissionControlScreen(
+                                aiRepository = aiRepository,
+                                initialPageRequestId = openAndroidIdeRequestId,
+                                onOpenChat = { navigateTo(ChatRoute) },
+                                onOpenVoice = { navigateTo(VoiceRoute) },
+                                onOpenTools = { navigateTo(ToolsRoute) },
+                                onOpenHistory = { navigateTo(HistoryRoute) },
+                                onOpenSettings = { navigateTo(SettingsRoute) }
+                            )
                         }
                         composable<HistoryRoute> {
                             HistoryScreen(
