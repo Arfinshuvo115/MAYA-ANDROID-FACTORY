@@ -17,12 +17,10 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.HorizontalDivider
@@ -125,8 +123,8 @@ fun MayaAppShell(
             TopLevelDestination(
                 route = MissionControlRoute,
                 labelRes = R.string.nav_mission_control,
-                selectedIcon = Icons.Filled.Hub,
-                unselectedIcon = Icons.Outlined.Hub,
+                selectedIcon = Icons.Filled.AutoAwesome,
+                unselectedIcon = Icons.Outlined.AutoAwesome,
                 testTag = "nav_mission_control"
             ),
             TopLevelDestination(
