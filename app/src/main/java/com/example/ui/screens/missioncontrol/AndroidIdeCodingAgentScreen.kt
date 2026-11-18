@@ -367,7 +367,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     if (diagnostics.isNotBlank()) {
                         Text(diagnostics, style = MaterialTheme.typography.bodySmall)
                     }
-                    if (!output.succeeded) {
+                    if (!output.succeeded || output.commandLabel.contains("Logcat", ignoreCase = true)) {
                         OutlinedButton(
                             onClick = {
                                 changeRequest = "Analyze this real Gradle build failure and fix the currently opened file only. Build exit code: " +
@@ -415,7 +415,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                 Text("Maya reads a bounded set of source files and prepares a unified patch. The patch is saved as a separate file; original source files are not changed until you review and explicitly apply it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(
                     onClick = {
-                        if (projectFiles.isEmpty()) status = "Connect and index the project folder first."
+                        if (changeRequest.isBlank()) status = "Describe the project-wide change first."
+                        else if (projectFiles.isEmpty()) status = "Connect and index the project folder first."
                         else if (isGenerating) status = "Maya is already preparing a code change."
                         else {
                             isGenerating = true
