@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -39,6 +40,7 @@ import com.example.domain.model.MayaPersona
 import com.example.domain.model.ResponseLength
 import com.example.missioncontrol.android.MayaAccessibilityService
 import com.example.missioncontrol.android.TermuxBuildBridge
+import com.example.missioncontrol.android.TermuxBuildState
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -89,6 +91,7 @@ private fun readProjectTree(context: Context, treeUri: Uri, maxEntries: Int = 25
 @Composable
 fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val latestBuildOutput by TermuxBuildState.latest.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var projectTreeUri by rememberSaveable { mutableStateOf<String?>(null) }
     val projectFiles = remember { mutableStateListOf<ProjectSourceEntry>() }
@@ -335,6 +338,31 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                latestBuildOutput?.let { output ->
+                    Text(
+                        if (output.succeeded) "Latest build result: BUILD SUCCESSFUL"
+                        else "Latest build result: FAILED (exit " + output.exitCode + ")",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (output.succeeded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                    if (output.errorMessage.isNotBlank()) Text(output.errorMessage, style = MaterialTheme.typography.bodySmall)
+                    val diagnostics = (output.stderr + "\n" + output.stdout).trim().takeLast(7000)
+                    if (diagnostics.isNotBlank()) {
+                        Text(diagnostics, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (!output.succeeded) {
+                        OutlinedButton(
+                            onClick = {
+                                changeRequest = "Analyze this real Gradle build failure and fix the currently opened file only. Build exit code: " +
+                                    output.exitCode + "\nTermux error: " + output.errorMessage +
+                                    "\nBuild output:\n" + diagnostics
+                                status = if (fileUri == null) "Open the source file identified by the build error, then ask Maya to edit it."
+                                    else "Build diagnostics added to Maya's coding request. Review the target file, then ask Maya to edit."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Send build diagnostics to Maya") }
+                    }
+                } ?: Text("No Termux build result has been received in this app session yet.", style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -430,7 +458,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed suggestions, user-triggered IDE controls and Termux Gradle build handoff for shared-storage projects. Build result capture, multi-file patching and Logcat repair remain future stages.",
+            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed suggestions, user-triggered IDE controls and Termux Gradle build handoff for shared-storage projects. Termux build stdout/stderr and exit-code capture are now connected. Multi-file patching, automatic error-file navigation and Logcat integration remain future stages.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
