@@ -26,9 +26,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.data.ai.AiRepository
+import com.example.domain.model.AppLanguage
+import com.example.domain.model.MayaPersona
+import com.example.domain.model.ResponseLength
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import java.io.IOException
 
 /**
@@ -40,13 +47,16 @@ import java.io.IOException
  * No broad storage permission, hidden package enumeration, or background file access.
  */
 @Composable
-fun AndroidIdeCodingAgentScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var projectTreeUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf("") }
     var codeText by rememberSaveable { mutableStateOf("") }
     var newFileName by rememberSaveable { mutableStateOf("MainActivity.kt") }
+    var changeRequest by rememberSaveable { mutableStateOf("") }
+    var isGenerating by rememberSaveable { mutableStateOf(false) }
     var status by rememberSaveable { mutableStateOf("Choose your Android project folder to begin.") }
 
     val chooseFolder = rememberLauncherForActivityResult(
@@ -228,8 +238,29 @@ fun AndroidIdeCodingAgentScreen(onBack: () -> Unit, modifier: Modifier = Modifie
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("3. Code editor", style = MaterialTheme.typography.titleMedium)
-                Text(
+                Text("3. Maya AI code assistant", style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(value = changeRequest, onValueChange = { changeRequest = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Describe the code change") }, minLines = 3)
+                Button(onClick = {
+                    val request = changeRequest.trim()
+                    if (request.isBlank()) status = "Describe the code change first."
+                    else if (fileUri == null) status = "Open the source file first."
+                    else if (codeText.length > 60000) status = "File too large for one safe AI edit."
+                    else {
+                        isGenerating = true
+                        val prompt = "You are Maya, a careful Android engineer. User request: " + request + "\nFile: " + fileName + "\nCurrent file:\n" + codeText + "\nReturn ONLY the complete revised file. No Markdown fences. Preserve package, imports, existing features and unrelated behavior. Make the smallest correct change. Never claim tests were run."
+                        coroutineScope.launch {
+                            val generated = StringBuilder()
+                            try {
+                                aiRepository.streamChatReply(prompt, MayaPersona.CODER, emptyList(), null, ResponseLength.DETAILED, if (request.any { it.code in 2432..2559 }) AppLanguage.BANGLA else AppLanguage.ENGLISH).collect { generated.append(it) }
+                                if (generated.isNotBlank()) { codeText = generated.toString().trim(); status = "AI edit prepared. Review it, then tap Save changes." }
+                                else status = "AI returned no code; editor unchanged."
+                            } catch (error: Exception) { status = "AI edit failed: " + (error.localizedMessage ?: "unknown error") }
+                            finally { isGenerating = false }
+                        }
+                    }
+                }, enabled = !isGenerating, modifier = Modifier.fillMaxWidth()) { Text(if (isGenerating) "Maya is coding..." else "Ask Maya to edit this file") }
+                Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("4. Code editor", style = MaterialTheme.typography.titleMedium)                Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
@@ -253,7 +284,7 @@ fun AndroidIdeCodingAgentScreen(onBack: () -> Unit, modifier: Modifier = Modifie
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: local project-folder access and manual source editing. AI-generated patches, project-wide code analysis, IDE-aware build/logcat repair and automated validation are the next stages; they are not claimed as active yet.",
+            "Current stage: project-folder access, source editing and Gemini-backed single-file code suggestions. Project-wide analysis and IDE-aware build/logcat repair remain future stages.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
