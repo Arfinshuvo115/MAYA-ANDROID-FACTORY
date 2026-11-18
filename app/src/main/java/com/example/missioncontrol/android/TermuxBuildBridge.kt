@@ -41,7 +41,7 @@ object TermuxBuildBridge {
             putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
             putExtra(
                 "com.termux.RUN_COMMAND_ARGUMENTS",
-                arrayOf("-lc", request.command.replace("$", "\\$") + " ", "maya-build", request.workingDirectory)
+                arrayOf("-lc", request.command)
             )
             putExtra("com.termux.RUN_COMMAND_WORKDIR", request.workingDirectory)
             putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
