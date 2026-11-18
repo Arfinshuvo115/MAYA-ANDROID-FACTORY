@@ -167,6 +167,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
             "com.m.androidide",
             "com.itsaky.androidide",
             "com.aide.ui",
+            "com.tyron.code",
             "com.termux"
         )
         val match = candidates.firstNotNullOfOrNull { packageName ->
