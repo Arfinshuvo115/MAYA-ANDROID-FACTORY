@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -93,7 +94,19 @@ private val missionControlPages = listOf(
 @Composable
 fun MissionControlScreen(modifier: Modifier = Modifier) {
     var selectedPageId by remember { mutableStateOf("dashboard") }
+    var searchQuery by remember { mutableStateOf("") }
     val selectedPage = missionControlPages.first { it.id == selectedPageId }
+    val query = searchQuery.trim()
+    val filteredPages = remember(query) {
+        if (query.isBlank()) missionControlPages
+        else missionControlPages.filter { page ->
+            page.title.contains(query, ignoreCase = true) ||
+                page.group.contains(query, ignoreCase = true) ||
+                page.purpose.contains(query, ignoreCase = true) ||
+                page.id.contains(query, ignoreCase = true)
+        }
+    }
+    val groupedPages = filteredPages.groupBy { it.group }.toList()
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
@@ -101,8 +114,30 @@ fun MissionControlScreen(modifier: Modifier = Modifier) {
     ) {
         item {
             Text("Mission Control tabs • ${missionControlPages.size}", style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Search Mission Control features") },
+                placeholder = { Text("Search voice, automation, wallet, agents…") },
+                singleLine = true
+            )
+            Text(
+                "${filteredPages.size} of ${missionControlPages.size} tabs",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
-        items(missionControlPages.groupBy { it.group }.toList()) { (group, pages) ->
+        if (filteredPages.isEmpty()) {
+            item {
+                Text(
+                    "No matching Mission Control feature. Try another keyword.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        items(groupedPages) { (group, pages) ->
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(group, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 pages.forEach { page ->
