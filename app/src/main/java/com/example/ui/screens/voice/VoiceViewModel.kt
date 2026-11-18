@@ -144,6 +144,30 @@ class VoiceViewModel(
             .any(normalized::contains)
         return mentionsVideo && asksToCreate
     }
+
+    private suspend fun speakReply(text: String, language: AppLanguage) {
+        if (text.isBlank()) return
+        val accent = _selectedAccent.value
+        val audio = aiRepository.synthesizeGeminiSpeech(
+            text = text,
+            voice = _selectedVoice.value,
+            tone = _selectedTone.value,
+            accent = accent
+        )
+        if (audio.isSuccess) {
+            speechHelper.playGeminiAudio(audio.getOrThrow(), VOICE_INTERACTION_UTTERANCE_ID)
+        } else {
+            speechHelper.toggleSpeak(
+                messageId = VOICE_INTERACTION_UTTERANCE_ID,
+                text = text,
+                language = language,
+                accent = accent,
+                voicePreset = _selectedVoice.value,
+                tone = _selectedTone.value
+            )
+        }
+    }
+
     private fun triggerVoiceInteractionResponse(spokenQuery: String) {
         _lastSpokenQuery.value = spokenQuery
         _inputText.value = spokenQuery
@@ -159,14 +183,7 @@ class VoiceViewModel(
                 if (localCommandReply != null) {
                     _voiceReplyText.value = localCommandReply
                     _isReplying.value = false
-                    speechHelper.toggleSpeak(
-                        messageId = VOICE_INTERACTION_UTTERANCE_ID,
-                        text = localCommandReply,
-                        language = lang,
-                        accent = _selectedAccent.value,
-                        voicePreset = _selectedVoice.value,
-                        tone = _selectedTone.value
-                    )
+                    speakReply(localCommandReply, lang)
                     return@launch
                 }
                 val videoRequest = isVideoProductionRequest(spokenQuery)
@@ -196,14 +213,7 @@ class VoiceViewModel(
                 }
                 _isReplying.value = false
                 if (latestReply.isNotBlank()) {
-                    speechHelper.toggleSpeak(
-                        messageId = VOICE_INTERACTION_UTTERANCE_ID,
-                        text = latestReply,
-                        language = lang,
-                        accent = _selectedAccent.value,
-                        voicePreset = _selectedVoice.value,
-                        tone = _selectedTone.value
-                    )
+                    speakReply(latestReply, lang)
                 }
             } catch (e: CancellationException) {
                 _isReplying.value = false
