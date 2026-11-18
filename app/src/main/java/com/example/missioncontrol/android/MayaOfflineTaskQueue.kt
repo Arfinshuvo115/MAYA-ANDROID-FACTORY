@@ -143,7 +143,7 @@ object MayaOfflineTaskQueue {
     fun schedule(context: Context, delayMillis: Long = 0L): Boolean =
         scheduleJob(context, JOB_ID, delayMillis)
 
-    private fun scheduleRecovery(context: Context, delayMillis: Long): Boolean =
+    internal fun scheduleRecovery(context: Context, delayMillis: Long): Boolean =
         scheduleJob(context, RECOVERY_JOB_ID, delayMillis)
 
     private fun scheduleJob(context: Context, jobId: Int, delayMillis: Long): Boolean {
