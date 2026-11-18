@@ -31,7 +31,9 @@ object MayaOfflineTaskQueue {
     @Synchronized private fun read(context: Context) =
         runCatching { JSONArray(prefs(context).getString(KEY_TASKS, "[]")) }.getOrElse { JSONArray() }
     @Synchronized private fun write(context: Context, data: JSONArray) {
-        prefs(context).edit().putString(KEY_TASKS, data.toString()).apply()
+        check(prefs(context).edit().putString(KEY_TASKS, data.toString()).commit()) {
+            "Could not persist the offline task queue."
+        }
     }
 
     @Synchronized fun list(context: Context): List<Task> {
@@ -53,7 +55,7 @@ object MayaOfflineTaskQueue {
             put("detail", "Queued locally. No network connection is required.")
         })
         write(context, data)
-        schedule(context)
+        check(schedule(context)) { "Android could not schedule the offline task." }
         id
     }
 
@@ -110,14 +112,14 @@ object MayaOfflineTaskQueue {
         schedule(context)
     }
 
-    fun schedule(context: Context) {
-        val scheduler = context.getSystemService(JobScheduler::class.java) ?: return
+    fun schedule(context: Context): Boolean {
+        val scheduler = context.getSystemService(JobScheduler::class.java) ?: return false
         val job = JobInfo.Builder(JOB_ID, ComponentName(context, MayaOfflineTaskJobService::class.java))
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
             .setPersisted(true)
             .setMinimumLatency(0)
             .build()
-        scheduler.schedule(job)
+        return scheduler.schedule(job) == JobScheduler.RESULT_SUCCESS
     }
 
     internal fun dispatch(context: Context, task: Task): Result<Unit> = runCatching {
