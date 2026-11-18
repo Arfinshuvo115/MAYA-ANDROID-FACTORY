@@ -217,12 +217,13 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
             status = "Choose the project folder and capture a build diagnostic first."
             return
         }
-        val match = projectFiles.firstOrNull { entry ->
-            !entry.isDirectory && (
-                diagnosticPath.endsWith(entry.relativePath, ignoreCase = true) ||
-                entry.relativePath.endsWith(diagnosticPath.substringAfterLast('/'), ignoreCase = true)
-            )
+        val exactMatches = projectFiles.filter { entry ->
+            !entry.isDirectory && diagnosticPath.endsWith(entry.relativePath, ignoreCase = true)
         }
+        val basenameMatches = if (exactMatches.isEmpty()) projectFiles.filter { entry ->
+            !entry.isDirectory && entry.name.equals(diagnosticPath.substringAfterLast('/'), ignoreCase = true)
+        } else emptyList()
+        val match = exactMatches.singleOrNull() ?: basenameMatches.singleOrNull()
         if (match == null) {
             status = "Build reported $diagnosticPath, but that file is not in the indexed project tree. Refresh the tree or open it with the file picker."
             return
@@ -449,12 +450,13 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                     "\nBuild output:\n" + diagnostics
                                 val location = buildLocation
                                 val matchingFile = location?.let { issue ->
-                                    projectFiles.firstOrNull { entry ->
-                                        !entry.isDirectory && (
-                                            issue.path.endsWith(entry.relativePath, ignoreCase = true) ||
-                                            entry.relativePath.endsWith(issue.path.substringAfterLast('/'), ignoreCase = true)
-                                        )
+                                    val exactMatches = projectFiles.filter { entry ->
+                                        !entry.isDirectory && issue.path.endsWith(entry.relativePath, ignoreCase = true)
                                     }
+                                    val basenameMatches = if (exactMatches.isEmpty()) projectFiles.filter { entry ->
+                                        !entry.isDirectory && entry.name.equals(issue.path.substringAfterLast('/'), ignoreCase = true)
+                                    } else emptyList()
+                                    exactMatches.singleOrNull() ?: basenameMatches.singleOrNull()
                                 }
                                 if (matchingFile != null) {
                                     runCatching {
