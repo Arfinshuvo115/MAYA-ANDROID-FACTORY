@@ -93,7 +93,16 @@ private val missionControlPages = listOf(
 )
 
 @Composable
-fun MissionControlScreen(aiRepository: AiRepository, initialPageRequestId: Int = 0, modifier: Modifier = Modifier) {
+fun MissionControlScreen(
+    aiRepository: AiRepository,
+    initialPageRequestId: Int = 0,
+    onOpenChat: () -> Unit = {},
+    onOpenVoice: () -> Unit = {},
+    onOpenTools: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     var selectedPageId by remember(initialPageRequestId) { mutableStateOf(if (initialPageRequestId > 0) "appfactory" else "dashboard") }
     var searchQuery by remember { mutableStateOf("") }
     val selectedPage = missionControlPages.first { it.id == selectedPageId }
@@ -149,7 +158,17 @@ fun MissionControlScreen(aiRepository: AiRepository, initialPageRequestId: Int =
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedPageId = page.id },
+                            .clickable {
+                                when (page.id) {
+                                    "maya" -> onOpenChat()
+                                    "voice", "socialcontrol" -> onOpenVoice()
+                                    "studio", "production" -> onOpenTools()
+                                    "deliverables" -> onOpenHistory()
+                                    "settings", "brain" -> onOpenSettings()
+                                    "appfactory", "termux", "workspace" -> selectedPageId = "appfactory"
+                                    else -> selectedPageId = page.id
+                                }
+                            },
                         colors = CardDefaults.cardColors(
                             containerColor = if (selectedPageId == page.id) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerLow
