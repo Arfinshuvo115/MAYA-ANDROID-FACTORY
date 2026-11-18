@@ -17,6 +17,7 @@ import com.example.data.ai.HybridMayaAiRepository
 import com.example.data.ai.LocalMayaAiRepository
 import com.example.data.local.ConversationStore
 import com.example.data.local.PreferencesRepository
+import com.example.missioncontrol.android.MayaAppCommandRouter
 import com.example.domain.model.ThemeMode
 import com.example.domain.model.UserPreferences
 import com.example.ui.navigation.MayaAppShell
@@ -69,7 +70,8 @@ class MainActivity : ComponentActivity() {
                 aiRepository = aiRepository,
                 preferencesRepository = preferencesRepository,
                 speechHelper = speechHelper,
-                speechRecognizerHelper = speechRecognizerHelper
+                speechRecognizerHelper = speechRecognizerHelper,
+                appCommandRouter = MayaAppCommandRouter(applicationContext)
             )
         )[VoiceViewModel::class.java]
 
