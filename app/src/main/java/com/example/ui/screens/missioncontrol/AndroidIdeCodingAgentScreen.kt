@@ -34,6 +34,7 @@ import com.example.data.ai.AiRepository
 import com.example.domain.model.AppLanguage
 import com.example.domain.model.MayaPersona
 import com.example.domain.model.ResponseLength
+import com.example.missioncontrol.android.MayaAccessibilityService
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -57,6 +58,9 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var newFileName by rememberSaveable { mutableStateOf("MainActivity.kt") }
     var changeRequest by rememberSaveable { mutableStateOf("") }
     var isGenerating by rememberSaveable { mutableStateOf(false) }
+    var visibleControlText by rememberSaveable { mutableStateOf("") }
+    var visibleFieldLabel by rememberSaveable { mutableStateOf("") }
+    var visibleFieldValue by rememberSaveable { mutableStateOf("") }
     var status by rememberSaveable { mutableStateOf("Choose your Android project folder to begin.") }
 
     val chooseFolder = rememberLauncherForActivityResult(
@@ -261,7 +265,24 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     }
                 }, enabled = !isGenerating, modifier = Modifier.fillMaxWidth()) { Text(if (isGenerating) "Maya is coding..." else "Ask Maya to edit this file") }
                 Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("4. Code editor", style = MaterialTheme.typography.titleMedium)                Text(
+                Text("4. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
+                Text("When Maya Accessibility is enabled in Android Settings, these buttons can interact with the visible IDE screen. Each action requires your direct tap here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(value = visibleControlText, onValueChange = { visibleControlText = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Visible button or control text") }, singleLine = true)
+                OutlinedButton(onClick = {
+                    val service = MayaAccessibilityService.active
+                    status = when { service == null -> "Enable Maya Accessibility in Android Settings and return to the IDE first."
+                        service.tapVisibleText(visibleControlText) -> "Tapped the visible control: " + visibleControlText
+                        else -> "Could not find a visible clickable control with that text." }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Tap visible IDE control") }
+                OutlinedTextField(value = visibleFieldLabel, onValueChange = { visibleFieldLabel = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Editor field label or hint") }, singleLine = true)
+                OutlinedTextField(value = visibleFieldValue, onValueChange = { visibleFieldValue = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Text to enter") }, minLines = 2)
+                Button(onClick = {
+                    val service = MayaAccessibilityService.active
+                    status = when { service == null -> "Enable Maya Accessibility in Android Settings and return to the IDE first."
+                        service.setTextInVisibleField(visibleFieldLabel, visibleFieldValue) -> "Entered text into the matched visible field."
+                        else -> "Could not find a matching visible editable field." }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Enter text in visible IDE field") }
+                Text("5. Code editor", style = MaterialTheme.typography.titleMedium)                Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
