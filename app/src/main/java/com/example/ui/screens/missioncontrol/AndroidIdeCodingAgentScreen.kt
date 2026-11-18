@@ -121,6 +121,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     val coroutineScope = rememberCoroutineScope()
     var projectTreeUri by rememberSaveable { mutableStateOf<String?>(null) }
     val projectFiles = remember { mutableStateListOf<ProjectSourceEntry>() }
+    val visibleControls = remember { mutableStateListOf<String>() }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf("") }
     var codeText by rememberSaveable { mutableStateOf("") }
@@ -649,6 +650,33 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                 Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("7. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
                 Text("When Maya Accessibility is enabled in Android Settings, these buttons can interact with the visible IDE screen. Each action requires your direct tap here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                OutlinedButton(
+                    onClick = {
+                        val service = MayaAccessibilityService.active
+                        if (service == null) {
+                            visibleControls.clear()
+                            status = "Enable Maya Accessibility in Android Settings, return to the IDE, then inspect again."
+                        } else {
+                            visibleControls.clear()
+                            visibleControls.addAll(service.getVisibleControlLabels())
+                            status = if (visibleControls.isEmpty()) "No visible clickable or editable controls were exposed by the current screen."
+                                else "Found ${visibleControls.size} visible controls. Tap one below to target it."
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Inspect visible IDE controls") }
+                visibleControls.take(30).forEach { controlLabel ->
+                    OutlinedButton(
+                        onClick = {
+                            visibleControlText = controlLabel
+                            val service = MayaAccessibilityService.active
+                            status = if (service?.tapVisibleText(controlLabel) == true) "Tapped visible control: " + controlLabel
+                                else "Could not activate this control. It may have moved or become hidden."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(controlLabel) }
+                }
                 OutlinedTextField(value = visibleControlText, onValueChange = { visibleControlText = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Visible button or control text") }, singleLine = true)
                 OutlinedButton(onClick = {
                     val service = MayaAccessibilityService.active
