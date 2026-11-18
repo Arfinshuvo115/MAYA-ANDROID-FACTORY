@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,7 @@ import com.example.domain.model.AppLanguage
 import com.example.domain.model.MayaPersona
 import com.example.domain.model.ResponseLength
 import com.example.missioncontrol.android.MayaAccessibilityService
+import com.example.missioncontrol.android.TermuxBuildBridge
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -295,7 +297,51 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
             }
         }
 
-                Text("3. Create or open source code", style = MaterialTheme.typography.titleMedium)
+
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("3. Gradle debug build via Termux", style = MaterialTheme.typography.titleMedium)
+                val buildRequest = projectTreeUri?.let(Uri::parse)?.let(TermuxBuildBridge::resolveSharedStorageProject)
+                Text(
+                    when {
+                        projectTreeUri == null -> "Choose a project folder first."
+                        buildRequest == null -> "The selected folder is not a supported shared-storage path. Termux cannot access app-private IDE folders through this bridge."
+                        !TermuxBuildBridge.hasTermux(context) -> "Install Termux to enable local Gradle execution."
+                        !TermuxBuildBridge.hasRunCommandPermission(context) -> "Grant MAYA the 'Run commands in Termux environment' permission in App Info. Termux must also have allow-external-apps=true."
+                        else -> "Ready to request ./gradlew assembleDebug in: " + buildRequest.workingDirectory
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = {
+                        val request = buildRequest
+                        when {
+                            request == null -> status = "Select a project folder under shared internal storage (primary storage) first."
+                            !TermuxBuildBridge.hasTermux(context) -> status = "Termux is not installed or not visible to MAYA."
+                            !TermuxBuildBridge.hasRunCommandPermission(context) -> {
+                                status = "Opening MAYA App Info. Grant 'Run commands in Termux environment', then return."
+                                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+                            }
+                            else -> {
+                                TermuxBuildBridge.requestDebugBuild(context, request)
+                                    .onSuccess { status = "Build command sent to Termux. Check the Termux terminal for the actual Gradle result." }
+                                    .onFailure { status = "Termux did not accept the build request: " + (it.localizedMessage ?: "unknown error") }
+                            }
+                        }
+                    },
+                    enabled = projectTreeUri != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Run Gradle assembleDebug in Termux") }
+                Text(
+                    "Prerequisites: Termux installed, Termux Settings > allow-external-apps=true, and Android Settings > MAYA > Additional permissions > Run commands in Termux environment. Build execution is user-triggered; MAYA does not report success until a real result is received.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+                Text("4. Create or open source code", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(
                     value = newFileName,
                     onValueChange = { newFileName = it },
@@ -321,7 +367,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("4. Maya AI code assistant", style = MaterialTheme.typography.titleMedium)
+                Text("5. Maya AI code assistant", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(value = changeRequest, onValueChange = { changeRequest = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Describe the code change") }, minLines = 3)
                 Button(onClick = {
                     val request = changeRequest.trim()
@@ -343,7 +389,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     }
                 }, enabled = !isGenerating, modifier = Modifier.fillMaxWidth()) { Text(if (isGenerating) "Maya is coding..." else "Ask Maya to edit this file") }
                 Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("5. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
+                Text("6. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
                 Text("When Maya Accessibility is enabled in Android Settings, these buttons can interact with the visible IDE screen. Each action requires your direct tap here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(value = visibleControlText, onValueChange = { visibleControlText = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Visible button or control text") }, singleLine = true)
                 OutlinedButton(onClick = {
@@ -360,7 +406,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         service.setTextInVisibleField(visibleFieldLabel, visibleFieldValue) -> "Entered text into the matched visible field."
                         else -> "Could not find a matching visible editable field." }
                 }, modifier = Modifier.fillMaxWidth()) { Text("Enter text in visible IDE field") }
-                Text("6. Code editor", style = MaterialTheme.typography.titleMedium)
+                Text("7. Code editor", style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
@@ -385,7 +431,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed code suggestions and user-triggered visible IDE control/text entry. Multi-file patch planning, Gradle execution and Logcat repair remain future stages.",
+            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed suggestions, user-triggered IDE controls and Termux Gradle build handoff for shared-storage projects. Build result capture, multi-file patching and Logcat repair remain future stages.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
