@@ -40,7 +40,7 @@ import java.io.IOException
  * No broad storage permission, hidden package enumeration, or background file access.
  */
 @Composable
-fun AndroidIdeCodingAgentScreen(modifier: Modifier = Modifier) {
+fun AndroidIdeCodingAgentScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var projectTreeUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
@@ -175,6 +175,9 @@ fun AndroidIdeCodingAgentScreen(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onBack) { Text("Back to Mission Control") }
+        }
         Text("Android IDE Coding Agent", style = MaterialTheme.typography.headlineSmall)
         Text(
             "Connect a project folder, open source files, edit code, create files and save changes. Maya uses Android's system document permission; she cannot silently browse the whole phone.",
