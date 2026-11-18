@@ -465,7 +465,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                         codeText = source
                                         fileUri = matchingFile.uri.toString()
                                         fileName = matchingFile.relativePath
-                                        status = "Opened \${matchingFile.relativePath} for the build fix. Review the file and tap Ask Maya to edit this file."
+                                        status = "Opened ${matchingFile.relativePath} for the build fix. Review the file and tap Ask Maya to edit this file."
                                     }.onFailure { status = "Diagnostics attached, but source auto-open failed: " + (it.localizedMessage ?: "unknown error") }
                                 } else {
                                     status = if (fileUri == null) "Diagnostics attached. Open the identified source file, then ask Maya to edit it."
