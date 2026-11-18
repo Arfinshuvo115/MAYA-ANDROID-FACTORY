@@ -3,12 +3,15 @@ package com.example.missioncontrol.android
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import com.example.MainActivity
 
 /**
  * Small, explicit voice-command router for launching supported apps.
  * It never clicks, types, sends messages, or changes device settings.
  */
 class MayaAppCommandRouter(context: Context) {
+    companion object { const val ACTION_OPEN_ANDROID_IDE = "com.example.maya.OPEN_ANDROID_IDE" }
+
     private val appContext = context.applicationContext
 
     private data class AppTarget(
@@ -50,6 +53,24 @@ class MayaAppCommandRouter(context: Context) {
      */
     fun execute(command: String): String? {
         val normalized = command.trim().replace(Regex("\\s+"), " ")
+        val openCodingAgent = listOf(
+            Regex("^(open|launch|start)\\s+(maya\\s+)?(android\\s+)?(ide|coding agent|app factory|android app factory)$", RegexOption.IGNORE_CASE),
+            Regex("^(মায়া কোডিং এজেন্ট|অ্যান্ড্রয়েড কোডিং এজেন্ট|অ্যাপ ফ্যাক্টরি)\\s*(খোলো|চালু করো|ওপেন করো)$", RegexOption.IGNORE_CASE)
+        ).any { it.matches(normalized) }
+        if (openCodingAgent) {
+            return try {
+                val intent = Intent(appContext, MainActivity::class.java).apply {
+                    action = ACTION_OPEN_ANDROID_IDE
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                appContext.startActivity(intent)
+                if (normalized.any { it in '\\u0980'..'\\u09FF' }) "মায়া Coding Agent খুলছি।"
+                else "Opening Maya Android IDE Coding Agent."
+            } catch (_: Exception) {
+                if (normalized.any { it in '\\u0980'..'\\u09FF' }) "মায়া Coding Agent খোলা যায়নি।"
+                else "Could not open Maya Android IDE Coding Agent."
+            }
+        }
         val target = targets.firstOrNull { app -> app.patterns.any { it.matches(normalized) } }
             ?: return null
 
