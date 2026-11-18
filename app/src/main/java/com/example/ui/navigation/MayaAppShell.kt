@@ -54,6 +54,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.R
+import com.example.data.ai.AiRepository
 import com.example.ui.components.jarvisHudBackdrop
 import com.example.ui.screens.chat.ChatScreen
 import com.example.ui.screens.chat.ChatViewModel
@@ -78,6 +79,7 @@ private data class TopLevelDestination(
 
 @Composable
 fun MayaAppShell(
+    aiRepository: AiRepository,
     chatViewModel: ChatViewModel,
     voiceViewModel: VoiceViewModel,
     toolsViewModel: ToolsViewModel,
@@ -287,7 +289,7 @@ fun MayaAppShell(
                             )
                         }
                         composable<MissionControlRoute> {
-                            MissionControlScreen()
+                            MissionControlScreen(aiRepository = aiRepository)
                         }
                         composable<HistoryRoute> {
                             HistoryScreen(
