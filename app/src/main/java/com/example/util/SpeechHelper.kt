@@ -152,7 +152,7 @@ class SpeechHelper(context: Context) {
 
     fun stop() {
         tts?.stop()
-        audioPlayer?.runCatching { stop() }
+        runCatching { audioPlayer?.stop() }
         audioPlayer?.release()
         audioPlayer = null
         _speakingMessageId.value = null
