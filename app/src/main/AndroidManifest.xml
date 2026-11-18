@@ -39,6 +39,10 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".missioncontrol.android.TermuxBuildResultReceiver"
+            android:exported="false" />
+
         <service
             android:name=".missioncontrol.android.MayaAccessibilityService"
             android:label="@string/mission_control_accessibility_label"
