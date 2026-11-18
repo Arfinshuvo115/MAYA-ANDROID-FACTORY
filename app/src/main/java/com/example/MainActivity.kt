@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
             VoiceViewModel.Factory(
                 aiRepository = aiRepository,
                 preferencesRepository = preferencesRepository,
+                conversationStore = conversationStore,
                 speechHelper = speechHelper,
                 speechRecognizerHelper = speechRecognizerHelper,
                 appCommandRouter = MayaAppCommandRouter(applicationContext)
