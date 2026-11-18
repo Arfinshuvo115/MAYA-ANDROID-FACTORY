@@ -1,9 +1,12 @@
 package com.example.missioncontrol.android
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.os.Build
+import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 
 /**
@@ -12,6 +15,7 @@ import java.io.File
  */
 object TermuxBuildBridge {
     data class BuildRequest(val workingDirectory: String, val command: String)
+    private val nextRequestCode = AtomicInteger(4100)
 
     fun resolveSharedStorageProject(treeUri: Uri): BuildRequest? {
         if (treeUri.authority != "com.android.externalstorage.documents") return null
@@ -44,8 +48,19 @@ object TermuxBuildBridge {
                 arrayOf("-lc", request.command)
             )
             putExtra("com.termux.RUN_COMMAND_WORKDIR", request.workingDirectory)
-            putExtra("com.termux.RUN_COMMAND_BACKGROUND", false)
-            putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
+            putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+            putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Maya Android debug build")
+            putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "Runs Gradle assembleDebug in the selected Android project.")
+            val callback = Intent(context, TermuxBuildResultReceiver::class.java)
+            val flags = PendingIntent.FLAG_ONE_SHOT or
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                nextRequestCode.incrementAndGet(),
+                callback,
+                flags
+            )
+            putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pendingIntent)
         }
         context.startService(intent)
     }
