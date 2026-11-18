@@ -20,6 +20,7 @@ data class TermuxBuildOutput(
 object TermuxBuildState {
     private val _latest = MutableStateFlow<TermuxBuildOutput?>(null)
     val latest = _latest.asStateFlow()
+    internal fun clear() { _latest.value = null }
     internal fun publish(output: TermuxBuildOutput) { _latest.value = output }
 }
 
