@@ -1,5 +1,6 @@
 package com.example.ui.screens.missioncontrol
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -39,6 +41,41 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.IOException
 
+
+private data class ProjectSourceEntry(val name: String, val relativePath: String, val uri: Uri, val isDirectory: Boolean)
+
+private fun readProjectTree(context: Context, treeUri: Uri, maxEntries: Int = 250): List<ProjectSourceEntry> {
+    val entries = mutableListOf<ProjectSourceEntry>()
+    val projection = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE)
+    val rootId = DocumentsContract.getTreeDocumentId(treeUri)
+    val pending = ArrayDeque<Pair<String, String>>()
+    pending.add(rootId to "")
+    var visitedDirectories = 0
+    while (pending.isNotEmpty() && entries.size < maxEntries && visitedDirectories < 40) {
+        val (parentId, parentPath) = pending.removeFirst()
+        visitedDirectories++
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentId)
+        val cursor = context.contentResolver.query(childrenUri, projection, null, null, null) ?: continue
+        cursor.use {
+            val idColumn = it.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = it.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeColumn = it.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            while (it.moveToNext() && entries.size < maxEntries) {
+                if (idColumn < 0 || nameColumn < 0 || mimeColumn < 0) continue
+                val id = it.getString(idColumn) ?: continue
+                val name = it.getString(nameColumn) ?: continue
+                val mime = it.getString(mimeColumn) ?: "application/octet-stream"
+                val isDirectory = mime == DocumentsContract.Document.MIME_TYPE_DIR
+                val relativePath = if (parentPath.isBlank()) name else "$parentPath/$name"
+                val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
+                entries += ProjectSourceEntry(name, relativePath, childUri, isDirectory)
+                if (isDirectory && pending.size < 40) pending.add(id to relativePath)
+            }
+        }
+    }
+    return entries.sortedWith(compareBy<ProjectSourceEntry> { !it.isDirectory }.thenBy { it.relativePath.lowercase() })
+}
+
 /**
  * First stage of Maya's on-device Android IDE bridge:
  * - user chooses a project folder through Android's Storage Access Framework;
@@ -52,6 +89,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var projectTreeUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val projectFiles = remember { mutableStateListOf<ProjectSourceEntry>() }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf("") }
     var codeText by rememberSaveable { mutableStateOf("") }
@@ -74,7 +112,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                 )
             }
             projectTreeUri = uri.toString()
-            status = "Project folder connected. Maya can create files here and edit files you open."
+            runCatching { projectFiles.clear(); projectFiles.addAll(readProjectTree(context, uri)) }
+            status = "Project folder connected. Found " + projectFiles.size + " entries."
         }
     }
 
@@ -217,7 +256,46 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("2. Create or open source code", style = MaterialTheme.typography.titleMedium)
+
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("2. Project file explorer", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        val tree = projectTreeUri?.let(Uri::parse)
+                        if (tree == null) status = "Choose a project folder first."
+                        else runCatching {
+                            projectFiles.clear()
+                            projectFiles.addAll(readProjectTree(context, tree))
+                            status = "Refreshed project index: " + projectFiles.size + " entries."
+                        }.onFailure { status = "Project scan failed: " + (it.localizedMessage ?: "unknown error") }
+                    }, enabled = projectTreeUri != null) { Text("Refresh file tree") }
+                    Text("${projectFiles.size} files/folders", style = MaterialTheme.typography.labelMedium)
+                }
+                if (projectFiles.isEmpty()) {
+                    Text("No indexed files yet. Connect a project folder and refresh.", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    projectFiles.take(250).forEach { entry ->
+                        OutlinedButton(onClick = {
+                            if (entry.isDirectory) status = "Folder: " + entry.relativePath
+                            else runCatching {
+                                val source = context.contentResolver.openInputStream(entry.uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                                    ?: throw IOException("Could not read the selected file.")
+                                if (source.length > 200000) throw IOException("File exceeds the 200 KB safe editor limit.")
+                                codeText = source
+                                fileUri = entry.uri.toString()
+                                fileName = entry.relativePath
+                                status = "Opened " + entry.relativePath
+                            }.onFailure { status = "Open failed: " + (it.localizedMessage ?: "unknown error") }
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Text((if (entry.isDirectory) "📁 " else "📄 ") + entry.relativePath)
+                        }
+                    }
+                }
+            }
+        }
+
+                Text("3. Create or open source code", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(
                     value = newFileName,
                     onValueChange = { newFileName = it },
@@ -243,7 +321,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("3. Maya AI code assistant", style = MaterialTheme.typography.titleMedium)
+                Text("4. Maya AI code assistant", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(value = changeRequest, onValueChange = { changeRequest = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Describe the code change") }, minLines = 3)
                 Button(onClick = {
                     val request = changeRequest.trim()
@@ -265,7 +343,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     }
                 }, enabled = !isGenerating, modifier = Modifier.fillMaxWidth()) { Text(if (isGenerating) "Maya is coding..." else "Ask Maya to edit this file") }
                 Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("4. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
+                Text("5. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
                 Text("When Maya Accessibility is enabled in Android Settings, these buttons can interact with the visible IDE screen. Each action requires your direct tap here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(value = visibleControlText, onValueChange = { visibleControlText = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Visible button or control text") }, singleLine = true)
                 OutlinedButton(onClick = {
@@ -282,7 +360,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         service.setTextInVisibleField(visibleFieldLabel, visibleFieldValue) -> "Entered text into the matched visible field."
                         else -> "Could not find a matching visible editable field." }
                 }, modifier = Modifier.fillMaxWidth()) { Text("Enter text in visible IDE field") }
-                Text("5. Code editor", style = MaterialTheme.typography.titleMedium)
+                Text("6. Code editor", style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
@@ -307,7 +385,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: project-folder access, source editing, Gemini-backed single-file suggestions and user-triggered visible IDE control/text entry. Project-wide analysis, autonomous Gradle execution and Logcat repair remain future stages.",
+            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed code suggestions and user-triggered visible IDE control/text entry. Multi-file patch planning, Gradle execution and Logcat repair remain future stages.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
