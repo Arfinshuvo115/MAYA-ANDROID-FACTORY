@@ -56,10 +56,10 @@ private data class BuildDiagnosticLocation(
 )
 
 private fun findBuildDiagnostic(output: String): BuildDiagnosticLocation? {
-    val locationPattern = Regex("""(?:^|[\\s(])((?:[A-Za-z]:)?[^\\s():]+?\\.(?:kt|java|xml|kts|gradle)):(\\d+)(?::(\\d+))?""")
+    val locationPattern = Regex("""(?:^|[\s(])((?:[A-Za-z]:)?[^\s():]+?\.(?:kt|java|xml|kts|gradle)):(\d+)(?::(\d+))?""")
     for (line in output.lineSequence()) {
         val match = locationPattern.find(line) ?: continue
-        val rawPath = match.groupValues[1].removePrefix("file://").replace('\\\\', '/')
+        val rawPath = match.groupValues[1].removePrefix("file://").replace('\\', '/')
         return BuildDiagnosticLocation(
             path = rawPath,
             line = match.groupValues[2].toIntOrNull() ?: 1,
