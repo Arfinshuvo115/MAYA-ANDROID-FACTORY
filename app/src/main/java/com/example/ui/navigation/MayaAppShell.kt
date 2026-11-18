@@ -17,10 +17,12 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.HorizontalDivider
@@ -59,6 +61,7 @@ import com.example.ui.screens.chat.ChatScreen
 import com.example.ui.screens.chat.ChatViewModel
 import com.example.ui.screens.history.HistoryScreen
 import com.example.ui.screens.history.HistoryViewModel
+import com.example.ui.screens.missioncontrol.MissionControlScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.settings.SettingsViewModel
 import com.example.ui.screens.tools.ToolsScreen
@@ -118,6 +121,13 @@ fun MayaAppShell(
                 selectedIcon = Icons.Filled.AutoAwesome,
                 unselectedIcon = Icons.Outlined.AutoAwesome,
                 testTag = "nav_studio"
+            ),
+            TopLevelDestination(
+                route = MissionControlRoute,
+                labelRes = R.string.nav_mission_control,
+                selectedIcon = Icons.Filled.Hub,
+                unselectedIcon = Icons.Outlined.Hub,
+                testTag = "nav_mission_control"
             ),
             TopLevelDestination(
                 route = HistoryRoute,
@@ -277,6 +287,9 @@ fun MayaAppShell(
                                 },
                                 onShowSnackbar = showSnackbar
                             )
+                        }
+                        composable<MissionControlRoute> {
+                            MissionControlScreen()
                         }
                         composable<HistoryRoute> {
                             HistoryScreen(
