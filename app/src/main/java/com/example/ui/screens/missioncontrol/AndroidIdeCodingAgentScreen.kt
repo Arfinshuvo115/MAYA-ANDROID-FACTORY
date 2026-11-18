@@ -282,7 +282,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         service.setTextInVisibleField(visibleFieldLabel, visibleFieldValue) -> "Entered text into the matched visible field."
                         else -> "Could not find a matching visible editable field." }
                 }, modifier = Modifier.fillMaxWidth()) { Text("Enter text in visible IDE field") }
-                Text("5. Code editor", style = MaterialTheme.typography.titleMedium)                Text(
+                Text("5. Code editor", style = MaterialTheme.typography.titleMedium)
+                Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
@@ -306,7 +307,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: project-folder access, source editing and Gemini-backed single-file code suggestions. Project-wide analysis and IDE-aware build/logcat repair remain future stages.",
+            "Current stage: project-folder access, source editing, Gemini-backed single-file suggestions and user-triggered visible IDE control/text entry. Project-wide analysis, autonomous Gradle execution and Logcat repair remain future stages.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
