@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -80,6 +81,7 @@ private data class TopLevelDestination(
 @Composable
 fun MayaAppShell(
     aiRepository: AiRepository,
+    openAndroidIdeRequestId: Int,
     chatViewModel: ChatViewModel,
     voiceViewModel: VoiceViewModel,
     toolsViewModel: ToolsViewModel,
@@ -91,6 +93,13 @@ fun MayaAppShell(
     val currentDestination = navBackStackEntry?.destination
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(openAndroidIdeRequestId) {
+        if (openAndroidIdeRequestId > 0) {
+            navController.navigate(MissionControlRoute) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     val showSnackbar: (String) -> Unit = { message ->
         coroutineScope.launch {
@@ -289,7 +298,7 @@ fun MayaAppShell(
                             )
                         }
                         composable<MissionControlRoute> {
-                            MissionControlScreen(aiRepository = aiRepository)
+                            MissionControlScreen(aiRepository = aiRepository, initialPageRequestId = openAndroidIdeRequestId)
                         }
                         composable<HistoryRoute> {
                             HistoryScreen(
