@@ -88,5 +88,5 @@
     <string name="action_clear">Clear</string>
 
     <string name="mission_control_accessibility_label">Maya approved screen actions</string>
-    <string name="mission_control_accessibility_description">Allows Maya to locate and tap a visible control only after you explicitly approve the action. Screen content is not recorded, stored, or uploaded.</string>
+    <string name="mission_control_accessibility_description">Allows Maya to locate and interact with visible controls or editable fields only after you explicitly tap an action in Maya. Screen content is not recorded, stored, or uploaded.</string>
 </resources>
