@@ -5,8 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.ai.AiRepository
 import com.example.data.local.PreferencesRepository
+import com.example.data.local.ConversationStore
 import com.example.missioncontrol.android.MayaAppCommandRouter
 import com.example.domain.model.AppLanguage
+import com.example.domain.model.ChatMessage
+import com.example.domain.model.ConversationThread
+import com.example.domain.model.MessageRole
 import com.example.domain.model.BanglaAccent
 import com.example.domain.model.BanglaPhrasePreset
 import com.example.domain.model.GeminiVoicePreset
@@ -27,10 +31,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class VoiceViewModel(
     private val aiRepository: AiRepository,
     private val preferencesRepository: PreferencesRepository,
+    private val conversationStore: ConversationStore,
     private val speechHelper: SpeechHelper,
     private val speechRecognizerHelper: SpeechRecognizerHelper,
     private val appCommandRouter: MayaAppCommandRouter
@@ -137,6 +143,23 @@ class VoiceViewModel(
         speechRecognizerHelper.clearError()
     }
 
+
+    private fun persistVoiceThread(
+        threadId: String,
+        existing: ConversationThread?,
+        messages: List<ChatMessage>
+    ) {
+        val thread = ConversationThread(
+            id = threadId,
+            title = existing?.title ?: "Maya Voice Conversations",
+            persona = MayaPersona.ASSISTANT,
+            messages = messages.takeLast(100),
+            updatedAtMillis = System.currentTimeMillis(),
+            isPinned = true
+        )
+        viewModelScope.launch { conversationStore.upsertThread(thread) }
+    }
+
     private fun isVideoProductionRequest(text: String): Boolean {
         val normalized = text.lowercase()
         val mentionsVideo = normalized.contains("ভিডিও") || normalized.contains("video")
@@ -179,6 +202,19 @@ class VoiceViewModel(
             try {
                 val containsBengali = spokenQuery.any { it in '\u0980'..'\u09FF' }
                 val lang = if (containsBengali) AppLanguage.BANGLA else AppLanguage.ENGLISH
+                val voiceThreadId = VOICE_MEMORY_THREAD_ID
+                val savedThread = conversationStore.threads.value.firstOrNull { it.id == voiceThreadId }
+                val historySnapshot = savedThread?.messages.orEmpty().takeLast(12)
+                val userMessage = ChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    role = MessageRole.USER,
+                    content = spokenQuery,
+                    timestampMillis = System.currentTimeMillis(),
+                    persona = MayaPersona.ASSISTANT,
+                    language = lang
+                )
+                val updatedHistory = historySnapshot + userMessage
+                persistVoiceThread(voiceThreadId, savedThread, updatedHistory)
                 val localCommandReply = appCommandRouter.execute(spokenQuery)
                 if (localCommandReply != null) {
                     _voiceReplyText.value = localCommandReply
@@ -203,7 +239,7 @@ class VoiceViewModel(
                 aiRepository.streamChatReply(
                     prompt = effectivePrompt,
                     persona = MayaPersona.ASSISTANT,
-                    history = emptyList(),
+                    history = updatedHistory,
                     imageUri = null,
                     responseLength = ResponseLength.BALANCED,
                     language = lang
@@ -213,6 +249,15 @@ class VoiceViewModel(
                 }
                 _isReplying.value = false
                 if (latestReply.isNotBlank()) {
+                    val assistantMessage = ChatMessage(
+                        id = UUID.randomUUID().toString(),
+                        role = MessageRole.ASSISTANT,
+                        content = latestReply,
+                        timestampMillis = System.currentTimeMillis(),
+                        persona = MayaPersona.ASSISTANT,
+                        language = lang
+                    )
+                    persistVoiceThread(voiceThreadId, savedThread, updatedHistory + assistantMessage)
                     speakReply(latestReply, lang)
                 }
             } catch (e: CancellationException) {
@@ -276,11 +321,13 @@ class VoiceViewModel(
     companion object {
         const val VOICE_STUDIO_UTTERANCE_ID = "bangla_voice_studio_player"
         const val VOICE_INTERACTION_UTTERANCE_ID = "bangla_voice_interaction_player"
+        const val VOICE_MEMORY_THREAD_ID = "maya_persistent_voice_memory"
     }
 
     class Factory(
         private val aiRepository: AiRepository,
         private val preferencesRepository: PreferencesRepository,
+        private val conversationStore: ConversationStore,
         private val speechHelper: SpeechHelper,
         private val speechRecognizerHelper: SpeechRecognizerHelper,
         private val appCommandRouter: MayaAppCommandRouter
@@ -290,6 +337,7 @@ class VoiceViewModel(
             return VoiceViewModel(
                 aiRepository = aiRepository,
                 preferencesRepository = preferencesRepository,
+                conversationStore = conversationStore,
                 speechHelper = speechHelper,
                 speechRecognizerHelper = speechRecognizerHelper,
                 appCommandRouter = appCommandRouter
