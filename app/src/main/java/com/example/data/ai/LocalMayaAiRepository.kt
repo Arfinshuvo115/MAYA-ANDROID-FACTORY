@@ -113,6 +113,16 @@ class LocalMayaAiRepository : AiRepository {
         }
     }
 
+
+    override suspend fun synthesizeGeminiSpeech(
+        text: String,
+        voice: GeminiVoicePreset,
+        tone: VoiceTone,
+        accent: BanglaAccent
+    ): Result<ByteArray> = Result.failure(
+        IllegalStateException("Gemini TTS requires a configured Gemini API key.")
+    )
+
     override suspend fun synthesizeBanglaVoice(
         text: String,
         voice: GeminiVoicePreset,
