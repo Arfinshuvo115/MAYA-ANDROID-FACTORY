@@ -71,7 +71,13 @@ object MayaOfflineTaskQueue {
             val o = data.optJSONObject(i) ?: continue
             if (o.optString("status") == "QUEUED" || o.optString("status") == "RUNNING") {
                 o.put("status", "RUNNING")
-                o.put("detail", "Sent to Termux; Gradle is running with --offline. Missing cached dependencies cause a truthful failure.")
+                o.put(
+                    "detail",
+                    if (o.optString("type") == "OFFLINE_PROJECT_AUDIT")
+                        "Running local static source analysis. No network or cloud model is used."
+                    else
+                        "Sent to Termux; Gradle is running with --offline. Missing cached dependencies cause a truthful failure."
+                )
                 write(context, data)
                 return Task(o.optString("id"), o.optString("type"), o.optString("projectPath"),
                     o.optString("label"), "RUNNING", o.optString("detail"))
