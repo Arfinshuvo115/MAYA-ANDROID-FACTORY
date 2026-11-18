@@ -64,10 +64,10 @@ class MayaAppCommandRouter(context: Context) {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 appContext.startActivity(intent)
-                if (normalized.any { it in '\\u0980'..'\\u09FF' }) "মায়া Coding Agent খুলছি।"
+                if (normalized.any { it.code in 2432..2559 }) "মায়া Coding Agent খুলছি।"
                 else "Opening Maya Android IDE Coding Agent."
             } catch (_: Exception) {
-                if (normalized.any { it in '\\u0980'..'\\u09FF' }) "মায়া Coding Agent খোলা যায়নি।"
+                if (normalized.any { it.code in 2432..2559 }) "মায়া Coding Agent খোলা যায়নি।"
                 else "Could not open Maya Android IDE Coding Agent."
             }
         }
