@@ -40,6 +40,14 @@ object TermuxBuildBridge {
     fun requestDebugBuild(context: Context, request: BuildRequest): Result<Unit> =
         sendCommand(context, request.workingDirectory, request.command, "Maya Android debug build")
 
+    fun requestLogcatSnapshot(context: Context): Result<Unit> =
+        sendCommand(
+            context,
+            "/data/data/com.termux/files/home",
+            "logcat -d -t 800",
+            "Maya Android Logcat snapshot"
+        )
+
     /** Applies only the named patch file after the user explicitly approves this action. */
     fun requestApplyReviewedPatch(context: Context, request: BuildRequest, patchFileName: String): Result<Unit> {
         if (!patchFileName.matches(Regex("[A-Za-z0-9_.-]{1,80}"))) {
