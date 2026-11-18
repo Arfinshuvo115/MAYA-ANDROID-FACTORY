@@ -56,14 +56,18 @@ private data class BuildDiagnosticLocation(
 )
 
 private fun findBuildDiagnostic(output: String): BuildDiagnosticLocation? {
-    val locationPattern = Regex("""(?:^|[\s(])((?:[A-Za-z]:)?[^\s():]+?\.(?:kt|java|xml|kts|gradle)):(\d+)(?::(\d+))?""")
+    val kotlinLocation = Regex("""((?:[A-Za-z]:)?[^\s():]+?\.(?:kt|java|xml|kts|gradle)):\s*\((\d+),\s*(\d+)\)""")
+    val standardLocation = Regex("""(?:^|[\s(])((?:[A-Za-z]:)?[^\s():]+?\.(?:kt|java|xml|kts|gradle)):(\d+)(?::(\d+))?""")
     for (line in output.lineSequence()) {
-        val match = locationPattern.find(line) ?: continue
-        val rawPath = match.groupValues[1].removePrefix("file://").replace('\\', '/')
+        val kotlinMatch = kotlinLocation.find(line)
+        val standardMatch = if (kotlinMatch == null) standardLocation.find(line) else null
+        val path = kotlinMatch?.groupValues?.get(1) ?: standardMatch?.groupValues?.get(1) ?: continue
+        val lineNumber = kotlinMatch?.groupValues?.get(2) ?: standardMatch?.groupValues?.get(2)
+        val columnNumber = kotlinMatch?.groupValues?.get(3) ?: standardMatch?.groupValues?.get(3)
         return BuildDiagnosticLocation(
-            path = rawPath,
-            line = match.groupValues[2].toIntOrNull() ?: 1,
-            column = match.groupValues[3].takeIf { it.isNotBlank() }?.toIntOrNull(),
+            path = path.removePrefix("file://").replace('\\', '/'),
+            line = lineNumber.toIntOrNull() ?: 1,
+            column = columnNumber.takeIf { it.isNotBlank() }?.toIntOrNull(),
             message = line.trim().take(500)
         )
     }
@@ -440,11 +444,33 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     if (!output.succeeded || output.commandLabel.contains("Logcat", ignoreCase = true)) {
                         OutlinedButton(
                             onClick = {
-                                changeRequest = "Analyze this real Gradle build failure and fix the currently opened file only. Build exit code: " +
+                                changeRequest = "Analyze this real build failure and fix the identified source file only. Preserve unrelated features. Build exit code: " +
                                     output.exitCode + "\nTermux error: " + output.errorMessage +
                                     "\nBuild output:\n" + diagnostics
-                                status = if (fileUri == null) "Open the source file identified by the build error, then ask Maya to edit it."
-                                    else "Build diagnostics added to Maya's coding request. Review the target file, then ask Maya to edit."
+                                val location = buildLocation
+                                val matchingFile = location?.let { issue ->
+                                    projectFiles.firstOrNull { entry ->
+                                        !entry.isDirectory && (
+                                            issue.path.endsWith(entry.relativePath, ignoreCase = true) ||
+                                            entry.relativePath.endsWith(issue.path.substringAfterLast('/'), ignoreCase = true)
+                                        )
+                                    }
+                                }
+                                if (matchingFile != null) {
+                                    runCatching {
+                                        val source = context.contentResolver.openInputStream(matchingFile.uri)
+                                            ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                                            ?: throw IOException("Could not read the diagnostic source file.")
+                                        if (source.length > 200000) throw IOException("Diagnostic file exceeds the 200 KB editor limit.")
+                                        codeText = source
+                                        fileUri = matchingFile.uri.toString()
+                                        fileName = matchingFile.relativePath
+                                        status = "Opened \${matchingFile.relativePath} for the build fix. Review the file and tap Ask Maya to edit this file."
+                                    }.onFailure { status = "Diagnostics attached, but source auto-open failed: " + (it.localizedMessage ?: "unknown error") }
+                                } else {
+                                    status = if (fileUri == null) "Diagnostics attached. Open the identified source file, then ask Maya to edit it."
+                                        else "Diagnostics attached to Maya's coding request. Confirm the currently opened file is the correct target before editing."
+                                }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Send build diagnostics to Maya") }
