@@ -4,17 +4,15 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.os.Build
-import java.util.concurrent.atomic.AtomicInteger
+import android.provider.DocumentsContract
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Explicit, user-triggered Gradle build handoff to Termux.
- * Only shared-storage SAF folders can be mapped safely to Termux filesystem paths.
- */
+/** Explicit, user-triggered Gradle and reviewed-patch handoff to Termux. */
 object TermuxBuildBridge {
     data class BuildRequest(val workingDirectory: String, val command: String)
+
     private val nextRequestCode = AtomicInteger(4100)
 
     fun resolveSharedStorageProject(treeUri: Uri): BuildRequest? {
@@ -23,8 +21,8 @@ object TermuxBuildBridge {
         if (!documentId.startsWith("primary:")) return null
         val relative = documentId.removePrefix("primary:").trim('/')
         if (relative.isBlank()) return null
-        val root = File("/storage/emulated/0", relative).canonicalFile
         val sharedRoot = File("/storage/emulated/0").canonicalFile
+        val root = File(sharedRoot, relative).canonicalFile
         if (!root.path.startsWith(sharedRoot.path + File.separator)) return null
         return BuildRequest(
             workingDirectory = root.absolutePath,
@@ -39,27 +37,36 @@ object TermuxBuildBridge {
         context.checkSelfPermission("com.termux.permission.RUN_COMMAND") ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
-    fun requestDebugBuild(context: Context, request: BuildRequest): Result<Unit> = runCatching {
+    fun requestDebugBuild(context: Context, request: BuildRequest): Result<Unit> =
+        sendCommand(context, request.workingDirectory, request.command, "Maya Android debug build")
+
+    /** Applies only the named patch file after the user explicitly approves this action. */
+    fun requestApplyReviewedPatch(context: Context, request: BuildRequest, patchFileName: String): Result<Unit> {
+        if (!patchFileName.matches(Regex("[A-Za-z0-9_.-]{1,80}"))) {
+            return Result.failure(IllegalArgumentException("Invalid patch file name."))
+        }
+        val command = "git apply --check \"$patchFileName\" && git apply \"$patchFileName\""
+        return sendCommand(context, request.workingDirectory, command, "Maya reviewed code patch")
+    }
+
+    private fun sendCommand(context: Context, workdir: String, command: String, label: String): Result<Unit> = runCatching {
+        val callback = Intent(context, TermuxBuildResultReceiver::class.java)
+        val flags = PendingIntent.FLAG_ONE_SHOT or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            nextRequestCode.incrementAndGet(),
+            callback,
+            flags
+        )
         val intent = Intent("com.termux.RUN_COMMAND").apply {
             setClassName("com.termux", "com.termux.app.RunCommandService")
             putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
-            putExtra(
-                "com.termux.RUN_COMMAND_ARGUMENTS",
-                arrayOf("-lc", request.command)
-            )
-            putExtra("com.termux.RUN_COMMAND_WORKDIR", request.workingDirectory)
+            putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", command))
+            putExtra("com.termux.RUN_COMMAND_WORKDIR", workdir)
             putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
-            putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Maya Android debug build")
-            putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "Runs Gradle assembleDebug in the selected Android project.")
-            val callback = Intent(context, TermuxBuildResultReceiver::class.java)
-            val flags = PendingIntent.FLAG_ONE_SHOT or
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                nextRequestCode.incrementAndGet(),
-                callback,
-                flags
-            )
+            putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", label)
+            putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "User-approved command requested by MAYA.")
             putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pendingIntent)
         }
         context.startService(intent)
