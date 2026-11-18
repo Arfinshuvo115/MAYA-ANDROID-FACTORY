@@ -456,7 +456,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                             prompt, MayaPersona.CODER, emptyList(), null,
                                             ResponseLength.DETAILED,
                                             if (changeRequest.any { it.code in 2432..2559 }) AppLanguage.BANGLA else AppLanguage.ENGLISH
-                                        ).collect { generated.append(it) }
+                                        ).collect { chunk -> generated.clear(); generated.append(chunk) }
                                         val candidatePatch = generated.toString().trim()
                                         if (!candidatePatch.startsWith("diff --git ")) {
                                             status = candidatePatch.take(500).ifBlank { "Maya did not return a patch." }
@@ -540,7 +540,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         coroutineScope.launch {
                             val generated = StringBuilder()
                             try {
-                                aiRepository.streamChatReply(prompt, MayaPersona.CODER, emptyList(), null, ResponseLength.DETAILED, if (request.any { it.code in 2432..2559 }) AppLanguage.BANGLA else AppLanguage.ENGLISH).collect { generated.append(it) }
+                                aiRepository.streamChatReply(prompt, MayaPersona.CODER, emptyList(), null, ResponseLength.DETAILED, if (request.any { it.code in 2432..2559 }) AppLanguage.BANGLA else AppLanguage.ENGLISH).collect { chunk -> generated.clear(); generated.append(chunk) }
                                 if (generated.isNotBlank()) { codeText = generated.toString().trim(); status = "AI edit prepared. Review it, then tap Save changes." }
                                 else status = "AI returned no code; editor unchanged."
                             } catch (error: Exception) { status = "AI edit failed: " + (error.localizedMessage ?: "unknown error") }
