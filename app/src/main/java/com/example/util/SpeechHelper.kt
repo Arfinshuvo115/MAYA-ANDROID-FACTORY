@@ -1,6 +1,8 @@
 package com.example.util
 
 import android.content.Context
+import android.media.MediaPlayer
+import java.io.File
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import com.example.domain.model.AppLanguage
@@ -23,6 +25,8 @@ class SpeechHelper(context: Context) {
 
     private var isReady = false
     private var tts: TextToSpeech? = null
+    private var audioPlayer: MediaPlayer? = null
+    private val appContext = context.applicationContext
 
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
@@ -111,13 +115,53 @@ class SpeechHelper(context: Context) {
         tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 
+
+    fun playGeminiAudio(audioBytes: ByteArray, messageId: String) {
+        stop()
+        val audioFile = File(appContext.cacheDir, "maya_tts_${UUID.randomUUID()}.wav")
+        runCatching {
+            audioFile.writeBytes(audioBytes)
+            val player = MediaPlayer()
+            audioPlayer = player
+            player.setDataSource(audioFile.absolutePath)
+            player.setOnPreparedListener {
+                _speakingMessageId.value = messageId
+                it.start()
+            }
+            player.setOnCompletionListener {
+                _speakingMessageId.value = null
+                it.release()
+                audioPlayer = null
+                audioFile.delete()
+            }
+            player.setOnErrorListener { mp, _, _ ->
+                _speakingMessageId.value = null
+                mp.release()
+                audioPlayer = null
+                audioFile.delete()
+                true
+            }
+            player.prepareAsync()
+        }.onFailure {
+            audioPlayer?.release()
+            audioPlayer = null
+            audioFile.delete()
+            _speakingMessageId.value = null
+        }
+    }
+
     fun stop() {
         tts?.stop()
+        audioPlayer?.runCatching { stop() }
+        audioPlayer?.release()
+        audioPlayer = null
         _speakingMessageId.value = null
     }
 
     fun shutdown() {
         tts?.stop()
+        audioPlayer?.release()
+        audioPlayer = null
         tts?.shutdown()
         tts = null
         _speakingMessageId.value = null
