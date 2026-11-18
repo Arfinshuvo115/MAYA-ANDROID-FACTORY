@@ -101,6 +101,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var newFileName by rememberSaveable { mutableStateOf("MainActivity.kt") }
     var changeRequest by rememberSaveable { mutableStateOf("") }
     var isGenerating by rememberSaveable { mutableStateOf(false) }
+    var patchText by rememberSaveable { mutableStateOf("") }
+    var patchFileName by rememberSaveable { mutableStateOf("") }
     var visibleControlText by rememberSaveable { mutableStateOf("") }
     var visibleFieldLabel by rememberSaveable { mutableStateOf("") }
     var visibleFieldValue by rememberSaveable { mutableStateOf("") }
@@ -340,8 +342,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                 )
                 latestBuildOutput?.let { output ->
                     Text(
-                        if (output.succeeded) "Latest build result: BUILD SUCCESSFUL"
-                        else "Latest build result: FAILED (exit " + output.exitCode + ")",
+                        if (output.succeeded) output.commandLabel + ": SUCCESS"
+                        else output.commandLabel + ": FAILED (exit " + output.exitCode + ")",
                         style = MaterialTheme.typography.titleSmall,
                         color = if (output.succeeded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     )
@@ -394,7 +396,122 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("5. Maya AI code assistant", style = MaterialTheme.typography.titleMedium)
+                Text("5. Whole-project change planner", style = MaterialTheme.typography.titleMedium)
+                Text("Maya reads a bounded set of source files and prepares a unified patch. The patch is saved as a separate file; original source files are not changed until you review and explicitly apply it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(
+                    onClick = {
+                        if (projectFiles.isEmpty()) status = "Connect and index the project folder first."
+                        else if (isGenerating) status = "Maya is already preparing a code change."
+                        else {
+                            isGenerating = true
+                            status = "Maya is reading project source files and planning a patch."
+                            coroutineScope.launch {
+                                try {
+                                    val projectContext = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        val candidates = projectFiles.filter { entry ->
+                                            !entry.isDirectory &&
+                                                entry.relativePath.substringAfterLast('.', "").lowercase() in setOf("kt","java","xml","kts","gradle","properties","pro","md") &&
+                                                entry.relativePath.split('/').none { it in setOf("build",".gradle",".git") }
+                                        }.take(12)
+                                        val combined = StringBuilder()
+                                        candidates.forEach { entry ->
+                                            if (combined.length < 52000) {
+                                                val source = context.contentResolver.openInputStream(entry.uri)
+                                                    ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                                                val remaining = 52000 - combined.length
+                                                if (source.isNotBlank() && remaining > 0) {
+                                                    combined.append("\n\n===== FILE: ").append(entry.relativePath).append(" =====\n")
+                                                    combined.append(source.take(remaining.coerceAtLeast(0)))
+                                                }
+                                            }
+                                        }
+                                        combined.toString()
+                                    }
+                                    if (projectContext.isBlank()) {
+                                        status = "No supported text source files were found in the indexed project."
+                                    } else {
+                                        val prompt = "You are Maya, a senior Android engineer. User request: " + changeRequest +
+                                            "\nProject source context (bounded sample):\n" + projectContext +
+                                            "\nReturn ONLY a valid unified git patch. Start each file with 'diff --git a/path b/path'. " +
+                                            "Use project-relative paths, no absolute paths, no markdown fences, no explanation. " +
+                                            "Preserve unrelated features. Do not add or delete files unless essential. If context is insufficient, return exactly NO_PATCH: followed by a short reason."
+                                        val generated = StringBuilder()
+                                        aiRepository.streamChatReply(
+                                            prompt, MayaPersona.CODER, emptyList(), null,
+                                            ResponseLength.DETAILED,
+                                            if (changeRequest.any { it.code in 2432..2559 }) AppLanguage.BANGLA else AppLanguage.ENGLISH
+                                        ).collect { generated.append(it) }
+                                        val candidatePatch = generated.toString().trim()
+                                        if (!candidatePatch.startsWith("diff --git ")) {
+                                            status = candidatePatch.take(500).ifBlank { "Maya did not return a patch." }
+                                        } else {
+                                            val tree = projectTreeUri?.let(Uri::parse)
+                                                ?: throw IOException("Project folder permission expired.")
+                                            val rootId = DocumentsContract.getTreeDocumentId(tree)
+                                            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, rootId)
+                                            val newPatchName = "maya-ai-change-" + System.currentTimeMillis() + ".patch"
+                                            val patchUri = DocumentsContract.createDocument(
+                                                context.contentResolver, parent, "text/x-diff", newPatchName
+                                            ) ?: throw IOException("Could not create patch file in the project folder.")
+                                            context.contentResolver.openOutputStream(patchUri, "wt")?.use {
+                                                it.write(candidatePatch.toByteArray(Charsets.UTF_8))
+                                            } ?: throw IOException("Could not write the patch file.")
+                                            patchText = candidatePatch
+                                            patchFileName = newPatchName
+                                            status = "Patch saved as " + newPatchName + ". Review the patch below before applying."
+                                        }
+                                    }
+                                } catch (error: Exception) {
+                                    status = "Project patch generation failed: " + (error.localizedMessage ?: "unknown error")
+                                } finally {
+                                    isGenerating = false
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isGenerating && projectFiles.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (isGenerating) "Maya is preparing patch…" else "Ask Maya to plan project-wide changes") }
+                OutlinedTextField(
+                    value = changeRequest,
+                    onValueChange = { changeRequest = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Project-wide change request") },
+                    minLines = 2
+                )
+                if (patchText.isNotBlank()) {
+                    Text("Patch preview: " + patchFileName, style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(
+                        value = patchText,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
+                        label = { Text("Review unified patch") },
+                        minLines = 8
+                    )
+                    val patchBuildRequest = projectTreeUri?.let(Uri::parse)?.let(TermuxBuildBridge::resolveSharedStorageProject)
+                    Button(
+                        onClick = {
+                            when {
+                                patchBuildRequest == null -> status = "Select a shared-storage project folder to apply patches through Termux."
+                                !TermuxBuildBridge.hasTermux(context) -> status = "Termux is not installed."
+                                !TermuxBuildBridge.hasRunCommandPermission(context) -> {
+                                    status = "Grant MAYA the Termux Run Command permission in App Info, then retry."
+                                    context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+                                }
+                                else -> TermuxBuildBridge.requestApplyReviewedPatch(context, patchBuildRequest, patchFileName)
+                                    .onSuccess { status = "Patch check and apply command sent. Wait for the Termux result before generating another patch." }
+                                    .onFailure { status = "Patch apply request failed: " + (it.localizedMessage ?: "unknown error") }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Apply reviewed patch with Termux") }
+                }
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("6. Maya single-file code assistant", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(value = changeRequest, onValueChange = { changeRequest = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Describe the code change") }, minLines = 3)
                 Button(onClick = {
                     val request = changeRequest.trim()
@@ -416,7 +533,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     }
                 }, enabled = !isGenerating, modifier = Modifier.fillMaxWidth()) { Text(if (isGenerating) "Maya is coding..." else "Ask Maya to edit this file") }
                 Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("6. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
+                Text("7. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
                 Text("When Maya Accessibility is enabled in Android Settings, these buttons can interact with the visible IDE screen. Each action requires your direct tap here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(value = visibleControlText, onValueChange = { visibleControlText = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Visible button or control text") }, singleLine = true)
                 OutlinedButton(onClick = {
@@ -433,7 +550,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         service.setTextInVisibleField(visibleFieldLabel, visibleFieldValue) -> "Entered text into the matched visible field."
                         else -> "Could not find a matching visible editable field." }
                 }, modifier = Modifier.fillMaxWidth()) { Text("Enter text in visible IDE field") }
-                Text("7. Code editor", style = MaterialTheme.typography.titleMedium)
+                Text("8. Code editor", style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
@@ -458,7 +575,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
         Text(
-            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed suggestions, user-triggered IDE controls and Termux Gradle build handoff for shared-storage projects. Termux build stdout/stderr and exit-code capture are now connected. Multi-file patching, automatic error-file navigation and Logcat integration remain future stages.",
+            "Current stage: project folder indexing (up to 250 entries), single-file source editing, Gemini-backed suggestions, user-triggered IDE controls and Termux Gradle build handoff for shared-storage projects. Termux build stdout/stderr and exit-code capture are connected. Maya can now prepare a bounded whole-project unified patch and apply it only after explicit approval. Automatic error-file navigation and Logcat integration remain future stages.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
