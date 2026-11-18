@@ -24,6 +24,7 @@ object MayaOfflineTaskQueue {
     private const val PREFS = "maya_offline_task_queue"
     private const val KEY_TASKS = "tasks"
     private const val JOB_ID = 73142
+    private const val RUNNING_LEASE_MS = 30 * 60 * 1000L
 
     data class Task(val id: String, val type: String, val projectPath: String, val label: String, val status: String, val detail: String)
 
@@ -81,8 +82,13 @@ object MayaOfflineTaskQueue {
         val data = read(context)
         for (i in 0 until data.length()) {
             val o = data.optJSONObject(i) ?: continue
-            if (o.optString("status") == "QUEUED" || o.optString("status") == "RUNNING") {
+            val status = o.optString("status")
+            val staleRunning = status == "RUNNING" &&
+                System.currentTimeMillis() - o.optLong("lastAttemptAt", System.currentTimeMillis()) >= RUNNING_LEASE_MS
+            if (status == "QUEUED" || staleRunning) {
                 o.put("status", "RUNNING")
+                o.put("attempts", o.optInt("attempts", 0) + 1)
+                o.put("lastAttemptAt", System.currentTimeMillis())
                 o.put(
                     "detail",
                     if (o.optString("type") == "OFFLINE_PROJECT_AUDIT")
