@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.ai.AiRepository
 import com.example.data.local.PreferencesRepository
+import com.example.missioncontrol.android.MayaAppCommandRouter
 import com.example.domain.model.AppLanguage
 import com.example.domain.model.BanglaAccent
 import com.example.domain.model.BanglaPhrasePreset
@@ -31,7 +32,8 @@ class VoiceViewModel(
     private val aiRepository: AiRepository,
     private val preferencesRepository: PreferencesRepository,
     private val speechHelper: SpeechHelper,
-    private val speechRecognizerHelper: SpeechRecognizerHelper
+    private val speechRecognizerHelper: SpeechRecognizerHelper,
+    private val appCommandRouter: MayaAppCommandRouter
 ) : ViewModel() {
 
     val presets: List<BanglaPhrasePreset> = aiRepository.getBanglaVoicePresets()
@@ -146,6 +148,20 @@ class VoiceViewModel(
             try {
                 val containsBengali = spokenQuery.any { it in '\u0980'..'\u09FF' }
                 val lang = if (containsBengali) AppLanguage.BANGLA else AppLanguage.ENGLISH
+                val localCommandReply = appCommandRouter.execute(spokenQuery)
+                if (localCommandReply != null) {
+                    _voiceReplyText.value = localCommandReply
+                    _isReplying.value = false
+                    speechHelper.toggleSpeak(
+                        messageId = VOICE_INTERACTION_UTTERANCE_ID,
+                        text = localCommandReply,
+                        language = lang,
+                        accent = _selectedAccent.value,
+                        voicePreset = _selectedVoice.value,
+                        tone = _selectedTone.value
+                    )
+                    return@launch
+                }
                 aiRepository.streamChatReply(
                     prompt = spokenQuery,
                     persona = MayaPersona.ASSISTANT,
@@ -235,7 +251,8 @@ class VoiceViewModel(
         private val aiRepository: AiRepository,
         private val preferencesRepository: PreferencesRepository,
         private val speechHelper: SpeechHelper,
-        private val speechRecognizerHelper: SpeechRecognizerHelper
+        private val speechRecognizerHelper: SpeechRecognizerHelper,
+        private val appCommandRouter: MayaAppCommandRouter
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -243,7 +260,8 @@ class VoiceViewModel(
                 aiRepository = aiRepository,
                 preferencesRepository = preferencesRepository,
                 speechHelper = speechHelper,
-                speechRecognizerHelper = speechRecognizerHelper
+                speechRecognizerHelper = speechRecognizerHelper,
+                appCommandRouter = appCommandRouter
             ) as T
         }
     }
