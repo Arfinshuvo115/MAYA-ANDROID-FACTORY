@@ -28,15 +28,21 @@ object TermuxBuildState {
 class TermuxBuildResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val result = intent?.getBundleExtra("result") ?: return
-        TermuxBuildState.publish(
-            TermuxBuildOutput(
-                exitCode = result.getInt("exitCode", -1),
-                stdout = result.getString("stdout").orEmpty().takeLast(50000),
-                stderr = result.getString("stderr").orEmpty().takeLast(50000),
-                internalError = result.getInt("err", -1),
-                errorMessage = result.getString("errmsg").orEmpty(),
-                commandLabel = intent.getStringExtra("maya_command_label") ?: "Termux command"
-            )
+        val output = TermuxBuildOutput(
+            exitCode = result.getInt("exitCode", -1),
+            stdout = result.getString("stdout").orEmpty().takeLast(50000),
+            stderr = result.getString("stderr").orEmpty().takeLast(50000),
+            internalError = result.getInt("err", -1),
+            errorMessage = result.getString("errmsg").orEmpty(),
+            commandLabel = intent.getStringExtra("maya_command_label") ?: "Termux command"
         )
+        TermuxBuildState.publish(output)
+        intent.getStringExtra("maya_task_id")?.let { taskId ->
+            val details = (output.errorMessage + "\n" + output.stderr + "\n" + output.stdout).trim().takeLast(1400)
+            MayaOfflineTaskQueue.finish(
+                context, taskId, output.succeeded,
+                if (details.isBlank()) "Termux exit code: " + output.exitCode else details
+            )
+        }
     }
 }
