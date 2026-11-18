@@ -1,5 +1,8 @@
 package com.example.ui.screens.settings
 
+import android.content.Intent
+import android.provider.Settings
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -104,6 +107,30 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_title),
                     subtitle = "Calibrate Gemini API key, J.A.R.V.I.S. HUD theme, Bangla audio, and persistence"
                 )
+
+                // Mission Control device actions require the user's explicit Android consent.
+                JarvisHudCard(
+                    telemetryTag = "MISSION CONTROL // DEVICE ACCESS",
+                    accentColor = MaterialTheme.colorScheme.tertiary
+                ) {
+                    Text(
+                        text = "Phone & App Control",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Enable Maya's accessibility bridge in Android Settings. Android displays its own consent screen; Maya cannot enable this permission silently.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open Android Accessibility Settings")
+                    }
+                }
 
                 // Engine Status Card
                 JarvisHudCard(
