@@ -38,14 +38,17 @@ object MayaOfflineTaskQueue {
         }
     }
 
-    @Synchronized fun list(context: Context): List<Task> {
+    private fun allTasks(context: Context): List<Task> {
         val data = read(context)
         return (0 until data.length()).mapNotNull { i ->
             val o = data.optJSONObject(i) ?: return@mapNotNull null
             Task(o.optString("id"), o.optString("type"), o.optString("projectPath"),
                 o.optString("label"), o.optString("status"), o.optString("detail"))
-        }.takeLast(20).reversed()
+        }
     }
+
+    @Synchronized fun list(context: Context): List<Task> =
+        allTasks(context).takeLast(20).reversed()
 
     @Synchronized fun enqueueOfflineBuild(context: Context, projectPath: String): Result<String> = runCatching {
         require(projectPath.startsWith("/storage/emulated/0/")) { "Only a selected primary shared-storage project is supported." }
@@ -104,8 +107,12 @@ object MayaOfflineTaskQueue {
                         "Sent to Termux; Gradle is running with --offline. Missing cached dependencies cause a truthful failure."
                 )
                 write(context, data)
-                check(scheduleRecovery(context, RUNNING_LEASE_MS)) {
-                    "Could not schedule the task lease recovery job."
+                if (!scheduleRecovery(context, RUNNING_LEASE_MS)) {
+                    // Never leave a task marked RUNNING unless its recovery lease is armed.
+                    o.put("status", "FAILED")
+                    o.put("detail", "Could not schedule Android recovery for this task; it was not started. Check device JobScheduler restrictions and queue it again.")
+                    write(context, data)
+                    continue
                 }
                 return Task(o.optString("id"), o.optString("type"), o.optString("projectPath"),
                     o.optString("label"), "RUNNING", o.optString("detail"))
@@ -129,7 +136,7 @@ object MayaOfflineTaskQueue {
     }
 
     @Synchronized private fun scheduleNext(context: Context) {
-        val tasks = list(context)
+        val tasks = allTasks(context)
         if (tasks.any { it.status == "QUEUED" }) {
             schedule(context, 0L)
         }
