@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.data.ai.AiRepository
 import com.example.ui.components.JarvisSectionHeader
 
 private data class AgentRole(val name: String, val responsibility: String)
@@ -92,12 +93,12 @@ private val missionControlPages = listOf(
 )
 
 @Composable
-fun MissionControlScreen(modifier: Modifier = Modifier) {
+fun MissionControlScreen(aiRepository: AiRepository, modifier: Modifier = Modifier) {
     var selectedPageId by remember { mutableStateOf("dashboard") }
     var searchQuery by remember { mutableStateOf("") }
     val selectedPage = missionControlPages.first { it.id == selectedPageId }
     if (selectedPageId == "appfactory") {
-        AndroidIdeCodingAgentScreen(onBack = { selectedPageId = "dashboard" })
+        AndroidIdeCodingAgentScreen(aiRepository = aiRepository, onBack = { selectedPageId = "dashboard" })
         return
     }
     val query = searchQuery.trim()
