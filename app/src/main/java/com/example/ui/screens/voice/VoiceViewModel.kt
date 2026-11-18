@@ -289,21 +289,39 @@ class VoiceViewModel(
         viewModelScope.launch {
             _uiState.value = VoiceUiState.Preparing
             try {
-                val synthesis = aiRepository.synthesizeBanglaVoice(
+                val geminiAudio = aiRepository.synthesizeGeminiSpeech(
                     text = textToSpeak,
                     voice = _selectedVoice.value,
                     tone = _selectedTone.value,
                     accent = _selectedAccent.value
                 )
-                _uiState.value = VoiceUiState.Ready(synthesis)
-                speechHelper.toggleSpeak(
-                    messageId = VOICE_STUDIO_UTTERANCE_ID,
-                    text = synthesis.spokenText,
-                    language = AppLanguage.BANGLA,
-                    accent = synthesis.accent,
-                    voicePreset = synthesis.voice,
-                    tone = synthesis.tone
-                )
+                if (geminiAudio.isSuccess) {
+                    speechHelper.playGeminiAudio(geminiAudio.getOrThrow(), VOICE_STUDIO_UTTERANCE_ID)
+                    _uiState.value = VoiceUiState.Ready(
+                        aiRepository.synthesizeBanglaVoice(
+                            text = textToSpeak,
+                            voice = _selectedVoice.value,
+                            tone = _selectedTone.value,
+                            accent = _selectedAccent.value
+                        )
+                    )
+                } else {
+                    val synthesis = aiRepository.synthesizeBanglaVoice(
+                        text = textToSpeak,
+                        voice = _selectedVoice.value,
+                        tone = _selectedTone.value,
+                        accent = _selectedAccent.value
+                    )
+                    _uiState.value = VoiceUiState.Ready(synthesis)
+                    speechHelper.toggleSpeak(
+                        messageId = VOICE_STUDIO_UTTERANCE_ID,
+                        text = synthesis.spokenText,
+                        language = AppLanguage.BANGLA,
+                        accent = synthesis.accent,
+                        voicePreset = synthesis.voice,
+                        tone = synthesis.tone
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
