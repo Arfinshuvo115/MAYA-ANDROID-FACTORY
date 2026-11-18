@@ -421,6 +421,24 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                 ) { Text("Queue build for background / offline execution") }
                 OutlinedButton(
                     onClick = {
+                        val tree = projectTreeUri
+                        if (tree == null) {
+                            status = "Choose the project folder first."
+                        } else {
+                            MayaOfflineTaskQueue.enqueueOfflineAudit(context, tree)
+                                .onSuccess { id ->
+                                    offlineTasks.clear()
+                                    offlineTasks.addAll(MayaOfflineTaskQueue.list(context))
+                                    status = "Offline project audit queued. Task ID: " + id + ". It runs locally without mobile data or a cloud AI model."
+                                }
+                                .onFailure { status = "Could not queue offline audit: " + (it.localizedMessage ?: "unknown error") }
+                        }
+                    },
+                    enabled = projectTreeUri != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Run offline project code audit") }
+                OutlinedButton(
+                    onClick = {
                         offlineTasks.clear()
                         offlineTasks.addAll(MayaOfflineTaskQueue.list(context))
                     },
