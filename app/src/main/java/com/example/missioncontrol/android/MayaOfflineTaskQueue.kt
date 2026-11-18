@@ -51,6 +51,20 @@ object MayaOfflineTaskQueue {
         id
     }
 
+    @Synchronized fun enqueueOfflineAudit(context: Context, treeUri: String): Result<String> = runCatching {
+        require(treeUri.startsWith("content://")) { "Choose a project folder using the Android folder picker first." }
+        val id = UUID.randomUUID().toString()
+        val data = read(context)
+        data.put(JSONObject().apply {
+            put("id", id); put("type", "OFFLINE_PROJECT_AUDIT"); put("projectPath", treeUri)
+            put("label", "Offline source project audit"); put("status", "QUEUED")
+            put("detail", "Queued locally. This static audit does not need internet or a cloud model.")
+        })
+        write(context, data)
+        schedule(context)
+        id
+    }
+
     @Synchronized fun nextQueued(context: Context): Task? {
         val data = read(context)
         for (i in 0 until data.length()) {
@@ -115,6 +129,15 @@ object MayaOfflineTaskQueue {
 class MayaOfflineTaskJobService : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         val task = MayaOfflineTaskQueue.nextQueued(this) ?: return false
+        if (task.type == "OFFLINE_PROJECT_AUDIT") {
+            runCatching {
+                val report = MayaOfflineProjectAuditor.run(this, android.net.Uri.parse(task.projectPath))
+                MayaOfflineTaskQueue.finish(this, task.id, true, report.asText())
+            }.onFailure {
+                MayaOfflineTaskQueue.finish(this, task.id, false, "Offline audit failed: " + (it.localizedMessage ?: "unknown error"))
+            }
+            return false
+        }
         if (task.type != "OFFLINE_GRADLE_BUILD") {
             MayaOfflineTaskQueue.finish(this, task.id, false, "Unsupported task type.")
             return false
