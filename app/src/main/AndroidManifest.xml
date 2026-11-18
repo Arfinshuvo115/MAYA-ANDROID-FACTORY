@@ -17,6 +17,7 @@
         <package android:name="com.m.androidide" />
         <package android:name="com.itsaky.androidide" />
         <package android:name="com.aide.ui" />
+        <package android:name="com.tyron.code" />
         <package android:name="com.termux" />
     </queries>
 
