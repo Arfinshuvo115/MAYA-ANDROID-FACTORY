@@ -50,7 +50,7 @@ object TermuxBuildBridge {
     }
 
     private fun sendCommand(context: Context, workdir: String, command: String, label: String): Result<Unit> = runCatching {
-        val callback = Intent(context, TermuxBuildResultReceiver::class.java)
+        val callback = Intent(context, TermuxBuildResultReceiver::class.java).putExtra("maya_command_label", label)
         val flags = PendingIntent.FLAG_ONE_SHOT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         val pendingIntent = PendingIntent.getBroadcast(
