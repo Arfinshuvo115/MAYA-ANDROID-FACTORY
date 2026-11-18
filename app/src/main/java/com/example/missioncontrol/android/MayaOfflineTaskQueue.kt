@@ -24,6 +24,7 @@ object MayaOfflineTaskQueue {
     private const val PREFS = "maya_offline_task_queue"
     private const val KEY_TASKS = "tasks"
     private const val JOB_ID = 73142
+    private const val RECOVERY_JOB_ID = 73143
     private const val RUNNING_LEASE_MS = 30 * 60 * 1000L
 
     data class Task(val id: String, val type: String, val projectPath: String, val label: String, val status: String, val detail: String)
@@ -103,6 +104,9 @@ object MayaOfflineTaskQueue {
                         "Sent to Termux; Gradle is running with --offline. Missing cached dependencies cause a truthful failure."
                 )
                 write(context, data)
+                check(scheduleRecovery(context, RUNNING_LEASE_MS)) {
+                    "Could not schedule the task lease recovery job."
+                }
                 return Task(o.optString("id"), o.optString("type"), o.optString("projectPath"),
                     o.optString("label"), "RUNNING", o.optString("detail"))
             }
@@ -128,19 +132,32 @@ object MayaOfflineTaskQueue {
         val tasks = list(context)
         if (tasks.any { it.status == "QUEUED" }) {
             schedule(context, 0L)
-        } else if (tasks.any { it.status == "RUNNING" }) {
-            schedule(context, RUNNING_LEASE_MS)
+        }
+        if (tasks.any { it.status == "RUNNING" }) {
+            scheduleRecovery(context, RUNNING_LEASE_MS)
+        } else {
+            cancelRecovery(context)
         }
     }
 
-    fun schedule(context: Context, delayMillis: Long = 0L): Boolean {
+    fun schedule(context: Context, delayMillis: Long = 0L): Boolean =
+        scheduleJob(context, JOB_ID, delayMillis)
+
+    private fun scheduleRecovery(context: Context, delayMillis: Long): Boolean =
+        scheduleJob(context, RECOVERY_JOB_ID, delayMillis)
+
+    private fun scheduleJob(context: Context, jobId: Int, delayMillis: Long): Boolean {
         val scheduler = context.getSystemService(JobScheduler::class.java) ?: return false
-        val job = JobInfo.Builder(JOB_ID, ComponentName(context, MayaOfflineTaskJobService::class.java))
+        val job = JobInfo.Builder(jobId, ComponentName(context, MayaOfflineTaskJobService::class.java))
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
             .setPersisted(true)
             .setMinimumLatency(delayMillis.coerceAtLeast(0L))
             .build()
         return scheduler.schedule(job) == JobScheduler.RESULT_SUCCESS
+    }
+
+    private fun cancelRecovery(context: Context) {
+        context.getSystemService(JobScheduler::class.java)?.cancel(RECOVERY_JOB_ID)
     }
 
     internal fun dispatch(context: Context, task: Task): Result<Unit> = runCatching {
@@ -161,7 +178,7 @@ object MayaOfflineTaskQueue {
             putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", result)
         }
         context.startService(intent)
-        check(schedule(context, RUNNING_LEASE_MS)) {
+        check(scheduleRecovery(context, RUNNING_LEASE_MS)) {
             "Could not schedule recovery for a missing Termux callback."
         }
     }
@@ -220,6 +237,9 @@ class MayaOfflineTaskJobService : JobService() {
     override fun onStopJob(params: JobParameters): Boolean {
         runningJob?.cancel()
         taskScope?.cancel()
+        // A cancelled audit or interrupted dispatch must not remain RUNNING forever.
+        MayaOfflineTaskQueue.schedule(this, 0L)
+        MayaOfflineTaskQueue.scheduleRecovery(this, 30 * 60 * 1000L)
         runningJob = null
         taskScope = null
         return true
