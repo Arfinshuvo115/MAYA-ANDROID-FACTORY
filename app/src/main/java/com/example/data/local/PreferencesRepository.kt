@@ -14,8 +14,14 @@ import com.example.domain.model.MayaPersona
 import com.example.domain.model.ResponseLength
 import com.example.domain.model.ThemeMode
 import com.example.domain.model.UserPreferences
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 private val Context.mayaDataStore: DataStore<Preferences> by preferencesDataStore(name = "maya_prefs")
 
