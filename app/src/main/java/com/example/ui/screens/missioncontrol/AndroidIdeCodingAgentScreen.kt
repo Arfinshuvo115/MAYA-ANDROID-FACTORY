@@ -143,7 +143,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var detectedErrorFile by rememberSaveable { mutableStateOf("") }
     var detectedErrorLine by rememberSaveable { mutableStateOf(0) }
     var isRunningProjectAgents by rememberSaveable { mutableStateOf(false) }
-    var projectAgentReport by rememberSaveable { mutableStateOf("") }
+    var projectAgentReport by remember { mutableStateOf("") }
     var projectAgentError by rememberSaveable { mutableStateOf("") }
 
     val chooseFolder = rememberLauncherForActivityResult(
@@ -721,13 +721,15 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                     isRunningProjectAgents = true
                                     projectAgentError = ""
                                     projectAgentReport = ""
+                                    val indexedFiles = projectFiles.toList()
+                                    val attachedBuildOutput = latestBuildOutput
                                     coroutineScope.launch {
                                         var savedTask: com.example.missioncontrol.MissionTask? = null
                                         try {
                                             val sourceContext = withContext(Dispatchers.IO) {
                                                 buildString {
                                                     var remaining = 24000
-                                                    projectFiles.asSequence()
+                                                    indexedFiles.asSequence()
                                                         .filter { !it.isDirectory && it.name.substringAfterLast('.', "").lowercase() in setOf("kt", "java", "xml", "kts", "gradle", "properties", "toml") }
                                                         .take(40)
                                                         .forEach { entry ->
@@ -738,7 +740,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                                                 }.getOrNull()
                                                                 if (!source.isNullOrBlank()) {
                                                                     val excerpt = source.take(minOf(6000, remaining))
-                                                                    appendLine("\n--- FILE: \${entry.relativePath} ---")
+                                                                    appendLine("\n--- FILE: ${entry.relativePath} ---")
                                                                     appendLine(excerpt)
                                                                     remaining -= excerpt.length
                                                                 }
@@ -749,15 +751,15 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                             if (sourceContext.isBlank()) {
                                                 throw IOException("No readable Kotlin/Java/XML/Gradle source files were found in the connected project index. Refresh the project tree and retry.")
                                             }
-                                            val output = latestBuildOutput
+                                            val output = attachedBuildOutput
                                             val buildContext = output?.let {
                                                 buildString {
-                                                    appendLine("Command: \${it.commandLabel}")
-                                                    appendLine("Exit code: \${it.exitCode}")
-                                                    appendLine("Succeeded: \${it.succeeded}")
-                                                    if (it.errorMessage.isNotBlank()) appendLine("Termux error: \${it.errorMessage}")
-                                                    appendLine("STDERR:\n\${it.stderr.takeLast(5000)}")
-                                                    appendLine("STDOUT:\n\${it.stdout.takeLast(5000)}")
+                                                    appendLine("Command: ${it.commandLabel}")
+                                                    appendLine("Exit code: ${it.exitCode}")
+                                                    appendLine("Succeeded: ${it.succeeded}")
+                                                    if (it.errorMessage.isNotBlank()) appendLine("Termux error: ${it.errorMessage}")
+                                                    appendLine("STDERR:\n${it.stderr.takeLast(5000)}")
+                                                    appendLine("STDOUT:\n${it.stdout.takeLast(5000)}")
                                                 }.takeLast(10000)
                                             }
                                             val queue = MissionQueueRepository(context)
@@ -798,7 +800,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                             Text("No Termux build callback is attached. Agents will analyze project source only and explicitly note that no build diagnostics were supplied.", style = MaterialTheme.typography.bodySmall)
                         } else {
                             Text(
-                                "Attached latest result: \${latestBuildOutput!!.commandLabel} · exit \${latestBuildOutput!!.exitCode}",
+                                "Attached latest result: ${latestBuildOutput!!.commandLabel} · exit ${latestBuildOutput!!.exitCode}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -833,7 +835,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                     }
                 }, enabled = !isGenerating, modifier = Modifier.fillMaxWidth()) { Text(if (isGenerating) "Maya is coding..." else "Ask Maya to edit this file") }
                 Text("AI edits only the unsaved editor buffer. Nothing is written until you review and tap Save changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("7. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
+                Text("8. Approved IDE screen controls", style = MaterialTheme.typography.titleMedium)
                 Text("When Maya Accessibility is enabled in Android Settings, these buttons can interact with the visible IDE screen. Each action requires your direct tap here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 OutlinedButton(
@@ -877,7 +879,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         service.setTextInVisibleField(visibleFieldLabel, visibleFieldValue) -> "Entered text into the matched visible field."
                         else -> "Could not find a matching visible editable field." }
                 }, modifier = Modifier.fillMaxWidth()) { Text("Enter text in visible IDE field") }
-                Text("8. Code editor", style = MaterialTheme.typography.titleMedium)
+                Text("9. Code editor", style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (fileUri == null) "No file open" else "Editing: $fileName",
                     style = MaterialTheme.typography.labelMedium,
