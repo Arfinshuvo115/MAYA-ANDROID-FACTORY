@@ -37,6 +37,7 @@ fun MissionVisualDashboard(
     onOpenPage: (String) -> Unit,
     onOpenChat: () -> Unit,
     onOpenTools: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -183,7 +184,7 @@ fun MissionVisualDashboard(
                 detail = "Keys and permissions",
                 accent = Color(0xFFA5D6A7),
                 modifier = Modifier.weight(1f),
-                onClick = { onOpenPage("settings") }
+                onClick = onOpenSettings
             )
         }
 
