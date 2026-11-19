@@ -230,7 +230,7 @@ object MissionRegressionTestPlanner {
         )
 
         val notes = mutableListOf<String>()
-        if (risk.files.any { it.isDeleted }) notes += "Deleted files were detected. Verify all references, resources and feature entry points that depended on them."
+        if (risk.files.any { it.isDeletedFile }) notes += "Deleted files were detected. Verify all references, resources and feature entry points that depended on them."
         if (paths.size > 5) notes += "Patch spans more than five files; run cross-module integration checks."
         if (risk.riskLevel.startsWith("HIGH", ignoreCase = true)) notes += "Static patch risk is HIGH; complete security/permission review before applying."
         if (fileSections.any { it.addedText.contains("migration", ignoreCase = true) || it.path.contains("migration", ignoreCase = true) }) {
