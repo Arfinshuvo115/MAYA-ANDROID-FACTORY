@@ -33,7 +33,6 @@ import com.example.data.ai.ProviderCredentialVault
 import com.example.missioncontrol.MissionWorkflowExecutionEngine
 import com.example.missioncontrol.MissionWorkflowDefinition
 import com.example.missioncontrol.MissionWorkflowDefinitionRepository
-import kotlinx.coroutines.launch
 
 /** Creates and persists ordered workflow drafts; execution is deliberately not implied. */
 @Composable
@@ -43,7 +42,6 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
     val vault = remember(context) { ProviderCredentialVault(context) }
     val aiRouter = remember(vault) { MultiAiProviderRouter(vault) }
     val executionEngine = remember(aiRouter) { MissionWorkflowExecutionEngine(aiRouter) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val workflows = remember { mutableStateListOf<MissionWorkflowDefinition>() }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var workflowName by remember { mutableStateOf("") }
@@ -56,6 +54,7 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
     var activeProvider by remember { mutableStateOf<ActiveAiProvider?>(null) }
     var running by remember { mutableStateOf(false) }
     var executionReport by remember { mutableStateOf<String?>(null) }
+    var pendingExecution by remember { mutableStateOf<Pair<MissionWorkflowDefinition, ActiveAiProvider>?>(null) }
 
     fun refresh() {
         workflows.clear()
@@ -65,6 +64,28 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
 
     LaunchedEffect(repository) { refresh() }
     LaunchedEffect(vault) { activeProvider = runCatching { vault.getActiveProvider() }.getOrNull() }
+    LaunchedEffect(pendingExecution) {
+        val request = pendingExecution ?: return@LaunchedEffect
+        val (workflow, route) = request
+        try {
+            val result = executionEngine.execute(
+                workflow,
+                route,
+                onStepStarted = { step, index, total -> message = "Running step $index/$total: ${step.title}" },
+                onStepCompleted = { step, index, total, _ -> message = "Completed step $index/$total: ${step.title}" }
+            )
+            executionReport = result.steps.joinToString("\n\n") { step ->
+                "${step.title}\nProvider: ${step.providerId} · ${step.modelId}\n${step.output}"
+            }
+            message = "Workflow completed · ${result.steps.size} AI steps."
+        } catch (failure: Exception) {
+            error = failure.localizedMessage ?: "Workflow execution failed."
+            message = "Workflow stopped. Review the error before retrying."
+        } finally {
+            running = false
+            pendingExecution = null
+        }
+    }
     val selected = workflows.firstOrNull { it.id == selectedId }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -148,29 +169,7 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
                                 error = null
                                 executionReport = null
                                 message = "Starting workflow…"
-                                scope.launch {
-                                    runCatching {
-                                        executionEngine.execute(
-                                            selected,
-                                            route,
-                                            onStepStarted = { step, index, total ->
-                                                message = "Running step $index/$total: ${step.title}"
-                                            },
-                                            onStepCompleted = { step, index, total, _ ->
-                                                message = "Completed step $index/$total: ${step.title}"
-                                            }
-                                        )
-                                    }.onSuccess { result ->
-                                        executionReport = result.steps.joinToString("\n\n") { step ->
-                                            "${step.title}\nProvider: ${step.providerId} · ${step.modelId}\n${step.output}"
-                                        }
-                                        message = "Workflow completed · ${result.steps.size} AI steps."
-                                    }.onFailure { failure ->
-                                        error = failure.localizedMessage ?: "Workflow execution failed."
-                                        message = "Workflow stopped. Review the error before retrying."
-                                    }
-                                    running = false
-                                }
+                                pendingExecution = selected to route
                             }
                         },
                         enabled = !running && selected.steps.isNotEmpty() &&
