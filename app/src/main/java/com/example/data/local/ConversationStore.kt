@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.domain.model.ConversationThread
 import com.example.domain.model.StudioResult
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +24,7 @@ class ConversationStore(context: Context) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
+    private val loadCompleted = CompletableDeferred<Unit>()
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -41,8 +43,17 @@ class ConversationStore(context: Context) {
 
     init {
         scope.launch {
-            loadAll()
+            try {
+                loadAll()
+            } finally {
+                loadCompleted.complete(Unit)
+            }
         }
+    }
+
+    /** Wait until existing local conversations have been loaded before read-modify-write flows. */
+    suspend fun awaitReady() {
+        loadCompleted.await()
     }
 
     private suspend fun loadAll() = mutex.withLock {
