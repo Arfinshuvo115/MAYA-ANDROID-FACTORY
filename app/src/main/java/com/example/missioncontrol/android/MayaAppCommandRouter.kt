@@ -95,7 +95,7 @@ class MayaAppCommandRouter(context: Context) {
         )
         val match = english.matchEntire(normalized) ?: bangla.matchEntire(normalized) ?: return null
         val agentName = match.groupValues[1].trim()
-        val missionTitle = match.groupValues[2].trim().trim('"', '\\'')
+        val missionTitle = match.groupValues[2].trim().trim('"')
         val taskPayload = match.groupValues[3].trim()
         if (agentName.isBlank() || missionTitle.isBlank() || taskPayload.isBlank()) {
             return "Please include an agent, an exact mission title, and the task."
@@ -136,15 +136,15 @@ class MayaAppCommandRouter(context: Context) {
                 agentId = agent.id
             )
             if (normalized.any { it.code in 0x0980..0x09FF }) {
-                "বস, '$taskTitle' কাজটি \${agent.displayName}-কে বরাদ্দ করে Queue-তে রেখেছি। চালু করিনি। Task Coordination খুলে Run চাপলে কাজ শুরু হবে।"
+                "বস, '$taskTitle' কাজটি ${agent.displayName}-কে বরাদ্দ করে Queue-তে রেখেছি। চালু করিনি। Task Coordination খুলে Run চাপলে কাজ শুরু হবে।"
             } else {
-                "Assigned '$taskTitle' to \${agent.displayName} and saved it in the queue. It has not been started. Open Task Coordination and press Run when ready."
+                "Assigned '$taskTitle' to ${agent.displayName} and saved it in the queue. It has not been started. Open Task Coordination and press Run when ready."
             }
         } catch (failure: Exception) {
             if (normalized.any { it.code in 0x0980..0x09FF }) {
-                "Agent assignment সংরক্ষণ করা যায়নি: \${failure.localizedMessage ?: "অজানা সমস্যা"}"
+                "Agent assignment সংরক্ষণ করা যায়নি: ${failure.localizedMessage ?: "অজানা সমস্যা"}"
             } else {
-                "Could not save the agent assignment: \${failure.localizedMessage ?: "unknown error"}"
+                "Could not save the agent assignment: ${failure.localizedMessage ?: "unknown error"}"
             }
         }
     }
