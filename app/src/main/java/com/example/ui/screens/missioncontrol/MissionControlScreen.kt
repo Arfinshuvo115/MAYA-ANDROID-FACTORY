@@ -122,6 +122,10 @@ fun MissionControlScreen(
         VisualAutomationScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "sources") {
+        WebResearchScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
@@ -172,7 +176,7 @@ fun MissionControlScreen(
                             .fillMaxWidth()
                             .clickable {
                                 when (page.id) {
-                                    "maya", "sources" -> onOpenChat()
+                                    "maya" -> onOpenChat()
                                     "voice", "socialcontrol" -> onOpenVoice()
                                     "studio", "production" -> onOpenTools()
                                     "deliverables", "memory" -> onOpenHistory()
