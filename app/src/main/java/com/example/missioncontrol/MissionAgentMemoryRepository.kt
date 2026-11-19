@@ -46,15 +46,13 @@ class MissionAgentMemoryRepository(context: Context) {
             content = content,
             tags = listOf(item.agentId, "completed-handoff").distinct()
         )
-        val updated = (all + memory)
-            .filter { it.missionId != item.missionId || it.id == memory.id || it.createdAtMillis >= 0L }
-            .let { entries ->
-                val keepIds = entries.filter { it.missionId == item.missionId }
-                    .sortedByDescending { it.createdAtMillis }
-                    .take(MAX_ITEMS_PER_MISSION)
-                    .map { it.id }.toSet()
-                entries.filter { it.missionId != item.missionId || it.id in keepIds }
-            }
+        val updated = (all + memory).let { entries ->
+            val keepIds = entries.filter { it.missionId == item.missionId }
+                .sortedByDescending { it.createdAtMillis }
+                .take(MAX_ITEMS_PER_MISSION)
+                .map { it.id }.toSet()
+            entries.filter { it.missionId != item.missionId || it.id in keepIds }
+        }
         save(updated)
         return memory
     }
