@@ -75,9 +75,13 @@ fun WebResearchScreen(onBack: () -> Unit) {
             Button(
                 onClick = {
                     scope.launch {
-                        preferencesRepository.setTavilyApiKey(keyDraft)
-                        keyDraft = ""
-                        error = null
+                        try {
+                            preferencesRepository.setTavilyApiKey(keyDraft)
+                            keyDraft = ""
+                            error = null
+                        } catch (_: Exception) {
+                            error = "Could not securely save the Tavily API key. Check device security and try again."
+                        }
                     }
                 },
                 enabled = keyDraft.isNotBlank(),
@@ -86,9 +90,13 @@ fun WebResearchScreen(onBack: () -> Unit) {
             OutlinedButton(
                 onClick = {
                     scope.launch {
-                        preferencesRepository.setTavilyApiKey("")
-                        keyDraft = ""
-                        error = null
+                        try {
+                            preferencesRepository.clearTavilyApiKey()
+                            keyDraft = ""
+                            error = null
+                        } catch (_: Exception) {
+                            error = "Could not remove the encrypted Tavily API key. Try again."
+                        }
                     }
                 },
                 enabled = preferences.tavilyApiKey.isNotBlank()
@@ -150,7 +158,7 @@ fun WebResearchScreen(onBack: () -> Unit) {
             }
         }
         Text(
-            "Search is live only when a valid Tavily API key is saved. Results are source snippets, not verified facts; open and assess sources before relying on them. The key is stored in app DataStore on this device, not encrypted by this feature.",
+            "Search is live only when a valid Tavily API key is saved. Results are source snippets, not verified facts; open and assess sources before relying on them. The key is stored locally using Android Keystore-backed encryption. It is not sent to Maya's backend by this storage feature.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
