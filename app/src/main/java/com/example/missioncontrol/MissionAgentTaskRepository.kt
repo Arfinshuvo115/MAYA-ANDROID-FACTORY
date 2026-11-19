@@ -86,15 +86,19 @@ class MissionAgentTaskRepository(context: Context) {
     }
 
     @Synchronized
-    fun previousHandoffs(item: MissionAgentWorkItem): String =
-        getForMission(item.missionId)
-            .filter { it.createdAtMillis < item.createdAtMillis && it.status == STATUS_COMPLETED && it.handoff.isNotBlank() }
+    fun previousHandoffs(item: MissionAgentWorkItem): String {
+        val ordered = getForMission(item.missionId)
+        val currentIndex = ordered.indexOfFirst { it.id == item.id }
+        if (currentIndex <= 0) return ""
+        return ordered.take(currentIndex)
+            .filter { it.status == STATUS_COMPLETED && it.handoff.isNotBlank() }
             .takeLast(MAX_HANDOFF_ITEMS)
             .joinToString("\n\n") { previous ->
                 val agent = MissionAgentRoster.agents.firstOrNull { it.id == previous.agentId }?.displayName ?: previous.agentId
                 "Completed task: ${previous.title}\nAssigned specialist: $agent\nHandoff:\n${previous.handoff}"
             }
             .take(MAX_CONTEXT_CHARS)
+    }
 
     private fun readAll(): List<MissionAgentWorkItem> {
         val raw = preferences.getString(KEY_ITEMS, "[]") ?: "[]"
