@@ -150,8 +150,7 @@ class GeminiRestClient(private val context: Context) {
         apiKey: String,
         text: String,
         voiceName: String,
-        style: String,
-        languageCode: String
+        style: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         val cleanedKey = apiKey.trim()
         if (cleanedKey.isBlank()) {
@@ -176,11 +175,8 @@ class GeminiRestClient(private val context: Context) {
                 putJsonObject("generationConfig") {
                     putJsonArray("responseModalities") { add(kotlinx.serialization.json.JsonPrimitive("AUDIO")) }
                     putJsonObject("speechConfig") {
-                        put("languageCode", languageCode)
                         putJsonObject("voiceConfig") {
-                            putJsonObject("prebuiltVoiceConfig") {
-                                put("voiceName", voiceName)
-                            }
+                            put("voice", voiceName)
                         }
                     }
                 }
