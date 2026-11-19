@@ -33,6 +33,7 @@ import com.example.data.ai.ProviderCredentialVault
 import com.example.missioncontrol.MissionWorkflowExecutionEngine
 import com.example.missioncontrol.MissionWorkflowDefinition
 import com.example.missioncontrol.MissionWorkflowDefinitionRepository
+import kotlinx.coroutines.launch
 
 /** Creates and persists ordered workflow drafts; execution is deliberately not implied. */
 @Composable
