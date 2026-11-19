@@ -97,20 +97,20 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
         error = null
         completedInRun = 0
         running = true
-        message = "Starting sequential workflow: \${work.size} queued specialist task(s)."
+        message = "Starting sequential workflow: ${work.size} queued specialist task(s)."
         scope.launch {
             try {
                 for (item in work) {
                     val agent = MissionAgentRoster.agents.firstOrNull { it.id == item.agentId }
                     if (agent == null) {
                         assignmentRepository.fail(item.id, "Assigned specialist is not in the current roster.")
-                        error = "Unknown specialist for task: \${item.title}"
+                        error = "Unknown specialist for task: ${item.title}"
                         message = "Workflow stopped. Review the failed assignment before continuing."
                         break
                     }
                     assignmentRepository.setStatus(item.id, MissionAgentTaskRepository.STATUS_RUNNING)
                     refreshAssignments()
-                    message = "Running \${agent.displayName}: \${item.title}"
+                    message = "Running ${agent.displayName}: ${item.title}"
                     try {
                         val output = pipeline.runAssignedTask(
                             mission = mission,
@@ -126,7 +126,7 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
                         memoryRepository.rememberCompletedHandoff(item, output)
                         completedInRun += 1
                         refreshAssignments()
-                        message = "Completed \${agent.displayName}. Handoff saved; continuing to the next queued specialist."
+                        message = "Completed ${agent.displayName}. Handoff saved; continuing to the next queued specialist."
                     } catch (cancelled: CancellationException) {
                         assignmentRepository.setStatus(item.id, MissionAgentTaskRepository.STATUS_QUEUED)
                         refreshAssignments()
@@ -135,13 +135,13 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
                     } catch (failure: Exception) {
                         assignmentRepository.fail(item.id, failure.localizedMessage ?: "Specialist task failed.")
                         error = failure.localizedMessage ?: "Specialist task failed."
-                        message = "Workflow stopped at \${agent.displayName}. Later tasks remain QUEUED and were not started."
+                        message = "Workflow stopped at ${agent.displayName}. Later tasks remain QUEUED and were not started."
                         refreshAssignments()
                         break
                     }
                 }
                 if (error == null) {
-                    message = "Workflow finished: $completedInRun of \${work.size} queued task(s) completed. Review each handoff below."
+                    message = "Workflow finished: $completedInRun of ${work.size} queued task(s) completed. Review each handoff below."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -183,7 +183,7 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
                 onClick = { missionMenuExpanded = true },
                 enabled = !running,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Mission: \${selectedMission?.title ?: "Select mission"}") }
+            ) { Text("Mission: ${selectedMission?.title ?: "Select mission"}") }
             DropdownMenu(
                 expanded = missionMenuExpanded,
                 onDismissRequest = { missionMenuExpanded = false }
@@ -202,8 +202,8 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Queued \${queued.size}", style = MaterialTheme.typography.labelMedium)
-            Text("Running \${if (runningItem != null || running) 1 else 0}", style = MaterialTheme.typography.labelMedium)
+            Text("Queued ${queued.size}", style = MaterialTheme.typography.labelMedium)
+            Text("Running ${if (runningItem != null || running) 1 else 0}", style = MaterialTheme.typography.labelMedium)
             Text("Done $completed", style = MaterialTheme.typography.labelMedium)
             Text("Failed $failed", style = MaterialTheme.typography.labelMedium)
         }
@@ -212,7 +212,7 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
             onClick = ::runWorkflow,
             enabled = selectedMission != null && queued.isNotEmpty() && !running,
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (running) "Workflow running…" else "Run queued workflow (\${queued.size})") }
+        ) { Text(if (running) "Workflow running…" else "Run queued workflow (${queued.size})") }
 
         Text(message, style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -237,7 +237,7 @@ fun MissionWorkflowExecutionScreen(onBack: () -> Unit) {
                         ) {
                             Text(item.title, style = MaterialTheme.typography.titleSmall)
                             Text(agentName, style = MaterialTheme.typography.labelMedium)
-                            Text("Status: \${item.status}", style = MaterialTheme.typography.bodySmall)
+                            Text("Status: ${item.status}", style = MaterialTheme.typography.bodySmall)
                             if (item.lastError.isNotBlank()) {
                                 Text(item.lastError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
