@@ -45,6 +45,7 @@ class PreferencesRepository(context: Context) {
                 GeminiVoicePreset.entries.firstOrNull { it.name == name }
             } ?: GeminiVoicePreset.SULAFAT,
             geminiApiKey = prefs[KEY_GEMINI_API_KEY].orEmpty(),
+            tavilyApiKey = prefs[KEY_TAVILY_API_KEY].orEmpty(),
             geminiModelId = prefs[KEY_GEMINI_MODEL]?.takeIf { it.isNotBlank() }
                 ?: UserPreferences.DEFAULT_GEMINI_MODEL
         )
@@ -93,6 +94,14 @@ class PreferencesRepository(context: Context) {
         dataStore.edit { it.remove(KEY_GEMINI_API_KEY) }
     }
 
+    suspend fun setTavilyApiKey(apiKey: String) {
+        val cleaned = apiKey.trim()
+        dataStore.edit { prefs ->
+            if (cleaned.isEmpty()) prefs.remove(KEY_TAVILY_API_KEY)
+            else prefs[KEY_TAVILY_API_KEY] = cleaned
+        }
+    }
+
     suspend fun setGeminiModelId(modelId: String) {
         dataStore.edit { it[KEY_GEMINI_MODEL] = modelId }
     }
@@ -107,5 +116,6 @@ class PreferencesRepository(context: Context) {
         val KEY_VOICE_PRESET = stringPreferencesKey("preferred_voice_preset")
         val KEY_GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val KEY_GEMINI_MODEL = stringPreferencesKey("gemini_model_id")
+        val KEY_TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
     }
 }
