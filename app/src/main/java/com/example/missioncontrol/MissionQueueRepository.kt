@@ -67,6 +67,16 @@ class MissionQueueRepository(context: Context) {
         return true
     }
 
+    /** Removes a mission only when it is not actively executing. */
+    @Synchronized
+    fun remove(id: String): Boolean {
+        val tasks = getAll()
+        val target = tasks.firstOrNull { it.id == id } ?: return false
+        require(target.status != STATUS_ACTIVE) { "An active mission cannot be removed." }
+        save(tasks.filterNot { it.id == id })
+        return true
+    }
+
     @Synchronized
     fun setReport(id: String, report: String): Boolean {
         val tasks = getAll()
