@@ -53,6 +53,22 @@ import java.io.IOException
 
 private data class ProjectSourceEntry(val name: String, val relativePath: String, val uri: Uri, val isDirectory: Boolean)
 
+private fun readDocumentTextBounded(context: Context, uri: Uri, maxChars: Int): String? {
+    require(maxChars > 0)
+    return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+        val result = StringBuilder()
+        val buffer = CharArray(4096)
+        var remaining = maxChars
+        while (remaining > 0) {
+            val count = reader.read(buffer, 0, minOf(buffer.size, remaining))
+            if (count < 0) break
+            result.append(buffer, 0, count)
+            remaining -= count
+        }
+        result.toString()
+    }
+}
+
 private data class BuildDiagnosticLocation(
     val path: String,
     val line: Int,
@@ -735,8 +751,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                                         .forEach { entry ->
                                                             if (remaining > 0) {
                                                                 val source = runCatching {
-                                                                    context.contentResolver.openInputStream(entry.uri)
-                                                                        ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                                                                    readDocumentTextBounded(context, entry.uri, 200000)
                                                                 }.getOrNull()
                                                                 if (!source.isNullOrBlank()) {
                                                                     val excerpt = source.take(minOf(6000, remaining))
