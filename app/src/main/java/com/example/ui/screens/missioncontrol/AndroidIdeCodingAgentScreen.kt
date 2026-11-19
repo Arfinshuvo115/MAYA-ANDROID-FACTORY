@@ -42,6 +42,10 @@ import com.example.missioncontrol.android.MayaAccessibilityService
 import com.example.missioncontrol.android.TermuxBuildBridge
 import com.example.missioncontrol.android.MayaOfflineTaskQueue
 import com.example.missioncontrol.android.TermuxBuildState
+import com.example.missioncontrol.MissionAgentPipeline
+import com.example.missioncontrol.MissionQueueRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -138,6 +142,9 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var status by rememberSaveable { mutableStateOf("Choose your Android project folder to begin.") }
     var detectedErrorFile by rememberSaveable { mutableStateOf("") }
     var detectedErrorLine by rememberSaveable { mutableStateOf(0) }
+    var isRunningProjectAgents by rememberSaveable { mutableStateOf(false) }
+    var projectAgentReport by rememberSaveable { mutableStateOf("") }
+    var projectAgentError by rememberSaveable { mutableStateOf("") }
 
     val chooseFolder = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -696,7 +703,115 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("6. Maya single-file code assistant", style = MaterialTheme.typography.titleMedium)
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("6. 16-Agent Project + Build Diagnostic Review", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Runs the 16 specialist roles against a bounded sample of source files from the selected project and the latest actual Termux callback output, if available. This creates a saved analysis report; it does not apply code changes.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = {
+                                if (projectTreeUri == null) {
+                                    projectAgentError = "Connect an Android project folder before running project-aware agents."
+                                } else if (isRunningProjectAgents) {
+                                    projectAgentError = "The project review is already running."
+                                } else {
+                                    isRunningProjectAgents = true
+                                    projectAgentError = ""
+                                    projectAgentReport = ""
+                                    coroutineScope.launch {
+                                        var savedTask: com.example.missioncontrol.MissionTask? = null
+                                        try {
+                                            val sourceContext = withContext(Dispatchers.IO) {
+                                                buildString {
+                                                    var remaining = 24000
+                                                    projectFiles.asSequence()
+                                                        .filter { !it.isDirectory && it.name.substringAfterLast('.', "").lowercase() in setOf("kt", "java", "xml", "kts", "gradle", "properties", "toml") }
+                                                        .take(40)
+                                                        .forEach { entry ->
+                                                            if (remaining > 0) {
+                                                                val source = runCatching {
+                                                                    context.contentResolver.openInputStream(entry.uri)
+                                                                        ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                                                                }.getOrNull()
+                                                                if (!source.isNullOrBlank()) {
+                                                                    val excerpt = source.take(minOf(6000, remaining))
+                                                                    appendLine("\n--- FILE: \${entry.relativePath} ---")
+                                                                    appendLine(excerpt)
+                                                                    remaining -= excerpt.length
+                                                                }
+                                                            }
+                                                        }
+                                                }.take(24000)
+                                            }
+                                            if (sourceContext.isBlank()) {
+                                                throw IOException("No readable Kotlin/Java/XML/Gradle source files were found in the connected project index. Refresh the project tree and retry.")
+                                            }
+                                            val output = latestBuildOutput
+                                            val buildContext = output?.let {
+                                                buildString {
+                                                    appendLine("Command: \${it.commandLabel}")
+                                                    appendLine("Exit code: \${it.exitCode}")
+                                                    appendLine("Succeeded: \${it.succeeded}")
+                                                    if (it.errorMessage.isNotBlank()) appendLine("Termux error: \${it.errorMessage}")
+                                                    appendLine("STDERR:\n\${it.stderr.takeLast(5000)}")
+                                                    appendLine("STDOUT:\n\${it.stdout.takeLast(5000)}")
+                                                }.takeLast(10000)
+                                            }
+                                            val queue = MissionQueueRepository(context)
+                                            val task = queue.add(
+                                                "Android project and build diagnostic review",
+                                                "Analyze the selected project source and latest available Termux result. Recommend minimal, feature-preserving fixes. Do not claim tests were run."
+                                            )
+                                            savedTask = task
+                                            queue.setStatus(task.id, MissionQueueRepository.STATUS_ACTIVE)
+                                            val result = MissionAgentPipeline(context).run(
+                                                task = task,
+                                                projectSourceContext = sourceContext,
+                                                buildDiagnostics = buildContext
+                                            )
+                                            val report = result.toMarkdown()
+                                            queue.setReport(task.id, report)
+                                            queue.setStatus(task.id, MissionQueueRepository.STATUS_COMPLETED)
+                                            projectAgentReport = report
+                                            status = "16-Agent project review completed. Report saved in the device-local Mission Queue."
+                                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            savedTask?.let { MissionQueueRepository(context).setStatus(it.id, MissionQueueRepository.STATUS_PAUSED) }
+                                            throw cancelled
+                                        } catch (failure: Exception) {
+                                            savedTask?.let { MissionQueueRepository(context).setStatus(it.id, MissionQueueRepository.STATUS_PAUSED) }
+                                            projectAgentError = failure.localizedMessage ?: "Project-aware Agent workflow failed."
+                                        } finally {
+                                            isRunningProjectAgents = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = projectTreeUri != null && !isRunningProjectAgents && !isGenerating,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isRunningProjectAgents) "16 Agents reviewing project…" else "Run 16 Agents on this Project")
+                        }
+                        if (latestBuildOutput == null) {
+                            Text("No Termux build callback is attached. Agents will analyze project source only and explicitly note that no build diagnostics were supplied.", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Text(
+                                "Attached latest result: \${latestBuildOutput!!.commandLabel} · exit \${latestBuildOutput!!.exitCode}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        if (projectAgentError.isNotBlank()) {
+                            Text(projectAgentError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (projectAgentReport.isNotBlank()) {
+                            Text("Saved 16-Agent project report", style = MaterialTheme.typography.titleSmall)
+                            Text(projectAgentReport, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                Text("7. Maya single-file code assistant", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(value = changeRequest, onValueChange = { changeRequest = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Describe the code change") }, minLines = 3)
                 Button(onClick = {
                     val request = changeRequest.trim()
