@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.example.data.ai.MultiAiProviderRouter
 import com.example.data.ai.ProviderCredentialVault
 import kotlinx.coroutines.launch
 
@@ -45,11 +46,14 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf(providers.first().id) }
     var menuExpanded by remember { mutableStateOf(false) }
     var keyDraft by rememberSaveable { mutableStateOf("") }
+    var modelDraft by rememberSaveable { mutableStateOf("gpt-4o-mini") }
     var savedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var status by remember { mutableStateOf("Credentials are encrypted locally with Android Keystore.") }
     var busy by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val selected = providers.first { it.id == selectedId }
+    val router = remember(vault) { MultiAiProviderRouter(vault) }
+    val defaultModels = mapOf("openai" to "gpt-4o-mini", "anthropic" to "claude-3-5-haiku-latest", "openrouter" to "openai/gpt-4o-mini", "groq" to "llama-3.3-70b-versatile", "tavily" to "")
 
     fun refresh() {
         scope.launch {
@@ -72,7 +76,7 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
             }
         }
         Text(
-            "Save optional API keys for future provider adapters. Keys are encrypted on this device. A saved key does not mean that provider is connected to chat, routing, voice or agent execution. Gemini remains configured through the existing Settings screen.",
+            "Keys are encrypted on this device. OpenAI, Anthropic, OpenRouter and Groq have direct text-generation adapters with an explicit connection test. Tavily remains a search credential only. Gemini stays configured through the existing Settings screen.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -83,7 +87,7 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
             providers.forEach { provider ->
                 DropdownMenuItem(
                     text = { Text(provider.displayName + if (provider.id in savedIds) " · Saved" else " · Not saved") },
-                    onClick = { selectedId = provider.id; keyDraft = ""; menuExpanded = false; status = provider.integrationStatus }
+                    onClick = { selectedId = provider.id; keyDraft = ""; modelDraft = defaultModels[provider.id].orEmpty(); menuExpanded = false; status = provider.integrationStatus }
                 )
             }
         }
@@ -97,6 +101,16 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium,
                     color = if (selected.id in savedIds) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (selected.id in MultiAiProviderRouter.RUNTIME_PROVIDERS) {
+                    OutlinedTextField(
+                        value = modelDraft,
+                        onValueChange = { modelDraft = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Model ID") },
+                        placeholder = { Text("Enter provider model ID") },
+                        singleLine = true
+                    )
+                }
                 OutlinedTextField(
                     value = keyDraft,
                     onValueChange = { keyDraft = it },
@@ -124,6 +138,20 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
                     enabled = !busy && keyDraft.isNotBlank(),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (busy) "Saving…" else "Save encrypted key") }
+                Button(
+                    onClick = {
+                        busy = true
+                        status = "Testing ${selected.displayName} connection…"
+                        scope.launch {
+                            router.verifyConnection(selected.id, modelDraft)
+                                .onSuccess { status = it }
+                                .onFailure { status = it.localizedMessage ?: "Provider verification failed." }
+                            busy = false
+                        }
+                    },
+                    enabled = !busy && selected.id in savedIds && selected.id in MultiAiProviderRouter.RUNTIME_PROVIDERS && modelDraft.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (busy) "Testing…" else "Test provider connection") }
                 OutlinedButton(
                     onClick = { confirmDelete = true },
                     enabled = !busy && selected.id in savedIds,
@@ -133,7 +161,7 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
         }
         Text(status, style = MaterialTheme.typography.bodySmall)
         Text(
-            "Provider activation requires a reviewed API adapter, request/response handling, timeout and rate-limit policy, error mapping, and tests. No automatic fallback or provider switching occurs yet.",
+            "The connection test sends a short request to the selected provider and may incur provider charges. No silent fallback or automatic provider switching is enabled; choose a provider explicitly and verify its model ID.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
