@@ -889,7 +889,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                                         }.toMap()
                                                     }
                                                     patchRiskReport = riskReview.toMarkdown() +
-                                                        "\\nBaseline source captured for ${beforeSources.size}/${changedPaths.size} changed files."
+                                                        "\nBaseline source captured for ${beforeSources.size}/${changedPaths.size} changed files."
                                                     patchBaselineSources = beforeSources
                                                     postApplyComparison = ""
                                                     val tree = projectTreeUri?.let(Uri::parse)
