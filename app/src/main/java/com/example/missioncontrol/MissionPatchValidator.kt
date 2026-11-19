@@ -50,6 +50,6 @@ object MissionPatchValidator {
         require(segments.none { it.isBlank() || it == "." || it == ".." }) {
             "Patch path contains an unsafe traversal or empty segment: $path"
         }
-        require(!path.startsWith(".git/") && path != ".git") { "Patches may not modify Git metadata." }
+        require(segments.none { it == ".git" }) { "Patches may not modify Git metadata." }
     }
 }
