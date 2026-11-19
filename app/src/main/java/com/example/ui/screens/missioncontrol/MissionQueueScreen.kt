@@ -20,19 +20,26 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.missioncontrol.MissionAgentPipeline
 import com.example.missioncontrol.MissionQueueRepository
 import com.example.missioncontrol.MissionTask
+import kotlinx.coroutines.launch
 
 @Composable
 fun MissionQueueScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val repository = remember(context) { MissionQueueRepository(context) }
+    val pipeline = remember(context) { MissionAgentPipeline(context) }
     val tasks = remember { mutableStateListOf<MissionTask>() }
+    val scope = rememberCoroutineScope()
+    var runningTaskId by remember { mutableStateOf<String?>(null) }
+    val pipelineErrors = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
     var title by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -131,26 +138,56 @@ fun MissionQueueScreen(onBack: () -> Unit) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 when (task.status) {
                                     MissionQueueRepository.STATUS_QUEUED,
-                                    MissionQueueRepository.STATUS_PAUSED -> Button(onClick = {
-                                        repository.setStatus(task.id, MissionQueueRepository.STATUS_ACTIVE)
-                                        refresh()
-                                    }) { Text("Start") }
-                                    MissionQueueRepository.STATUS_ACTIVE -> OutlinedButton(onClick = {
-                                        repository.setStatus(task.id, MissionQueueRepository.STATUS_PAUSED)
-                                        refresh()
-                                    }) { Text("Pause") }
+                                    MissionQueueRepository.STATUS_PAUSED -> Button(
+                                        enabled = runningTaskId == null,
+                                        onClick = {
+                                            scope.launch {
+                                                runningTaskId = task.id
+                                                pipelineErrors.remove(task.id)
+                                                repository.setStatus(task.id, MissionQueueRepository.STATUS_ACTIVE)
+                                                refresh()
+                                                try {
+                                                    val result = pipeline.run(task)
+                                                    repository.setReport(task.id, result.toMarkdown())
+                                                    repository.setStatus(task.id, MissionQueueRepository.STATUS_COMPLETED)
+                                                } catch (failure: Exception) {
+                                                    pipelineErrors[task.id] = failure.message ?: "Agent workflow failed."
+                                                    repository.setStatus(task.id, MissionQueueRepository.STATUS_PAUSED)
+                                                } finally {
+                                                    runningTaskId = null
+                                                    refresh()
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Text(if (runningTaskId == task.id) "Running…" else "Run 4 Agents")
+                                    }
+                                    MissionQueueRepository.STATUS_ACTIVE -> Text(
+                                        if (runningTaskId == task.id) "Four agents are processing this mission…" else "Active",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
                                 }
                                 if (task.status != MissionQueueRepository.STATUS_COMPLETED) {
-                                    OutlinedButton(onClick = {
-                                        repository.setStatus(task.id, MissionQueueRepository.STATUS_COMPLETED)
-                                        refresh()
-                                    }) { Text("Complete") }
+                                    OutlinedButton(
+                                        enabled = runningTaskId != task.id,
+                                        onClick = {
+                                            repository.setStatus(task.id, MissionQueueRepository.STATUS_COMPLETED)
+                                            refresh()
+                                        }
+                                    ) { Text("Complete") }
                                 } else {
                                     OutlinedButton(onClick = {
                                         repository.setStatus(task.id, MissionQueueRepository.STATUS_QUEUED)
                                         refresh()
-                                    }) { Text("Reopen") }
+                                    }) { Text("Run again") }
                                 }
+                            }
+                            pipelineErrors[task.id]?.let { message ->
+                                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (task.lastReport.isNotBlank()) {
+                                Text("Saved four-agent report", style = MaterialTheme.typography.labelMedium)
+                                Text(task.lastReport, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -158,7 +195,7 @@ fun MissionQueueScreen(onBack: () -> Unit) {
             }
         }
         Text(
-            "Honest status: this queue saves and tracks missions locally. Starting a mission changes its local status only; it does not yet launch an AI agent or remote workflow.",
+            "Agent connection: Run 4 Agents calls the configured Gemini model sequentially as Planner, Researcher, Developer and Reviewer. The reviewed report is saved on this device. It does not silently edit project files, browse the web, or perform external actions.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
