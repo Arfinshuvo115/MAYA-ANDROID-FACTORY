@@ -87,13 +87,19 @@ class SettingsViewModel(
     fun saveGeminiApiKey(rawKey: String, onSaved: (Boolean) -> Unit) {
         val cleaned = rawKey.trim()
         viewModelScope.launch {
-            preferencesRepository.setGeminiApiKey(cleaned)
-            _keyStatus.value = if (cleaned.isEmpty()) {
-                GeminiKeyStatus.Idle
-            } else {
-                GeminiKeyStatus.Valid("Saved on device (${preferences.value.geminiModelId})")
+            try {
+                preferencesRepository.setGeminiApiKey(cleaned)
+                _keyStatus.value = if (cleaned.isEmpty()) {
+                    GeminiKeyStatus.Idle
+                } else {
+                    GeminiKeyStatus.Valid("Saved securely on this device (${preferences.value.geminiModelId})")
+                }
+                onSaved(cleaned.isNotEmpty())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _keyStatus.value = GeminiKeyStatus.Invalid("Could not securely save the Gemini API key. Check device security and try again.")
             }
-            onSaved(cleaned.isNotEmpty())
         }
     }
 
@@ -109,8 +115,16 @@ class SettingsViewModel(
             val result = geminiRestClient.verifyApiKey(cleaned, modelId)
             result.fold(
                 onSuccess = { msg ->
-                    preferencesRepository.setGeminiApiKey(cleaned)
-                    _keyStatus.value = GeminiKeyStatus.Valid(msg)
+                    try {
+                        preferencesRepository.setGeminiApiKey(cleaned)
+                        _keyStatus.value = GeminiKeyStatus.Valid("$msg · saved securely")
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        _keyStatus.value = GeminiKeyStatus.Invalid(
+                            "Gemini key verified, but secure storage failed. The key was not saved."
+                        )
+                    }
                 },
                 onFailure = { err ->
                     _keyStatus.value = GeminiKeyStatus.Invalid(
@@ -123,9 +137,15 @@ class SettingsViewModel(
 
     fun clearGeminiApiKey(onCleared: () -> Unit) {
         viewModelScope.launch {
-            preferencesRepository.clearGeminiApiKey()
-            _keyStatus.value = GeminiKeyStatus.Idle
-            onCleared()
+            try {
+                preferencesRepository.clearGeminiApiKey()
+                _keyStatus.value = GeminiKeyStatus.Idle
+                onCleared()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _keyStatus.value = GeminiKeyStatus.Invalid("Could not remove the encrypted Gemini API key. Try again.")
+            }
         }
     }
 
