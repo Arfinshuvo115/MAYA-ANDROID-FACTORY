@@ -2,6 +2,7 @@ package com.example.ui.screens.missioncontrol
 
 import android.content.Intent
 import android.provider.Settings
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,8 @@ fun VisualAutomationScreen(onBack: () -> Unit) {
     var textToEnter by remember { mutableStateOf("") }
     var pendingAction by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("Press Inspect to read visible controls from the foreground app.") }
+    var websiteAddress by remember { mutableStateOf("") }
+    var pendingWebsite by remember { mutableStateOf<String?>(null) }
 
     fun inspect() {
         val service = MayaAccessibilityService.active
@@ -68,6 +71,34 @@ fun VisualAutomationScreen(onBack: () -> Unit) {
         }
         Text(
             "This first connector reads the visible Android accessibility tree. It is not screenshot/OCR vision and does not run hidden background actions.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text("Browser Workspace", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = websiteAddress,
+            onValueChange = { websiteAddress = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Website URL") },
+            placeholder = { Text("https://example.com") },
+            singleLine = true
+        )
+        OutlinedButton(
+            onClick = {
+                val raw = websiteAddress.trim()
+                val normalized = if (raw.startsWith("https://", true) || raw.startsWith("http://", true)) raw else "https://$raw"
+                val parsed = runCatching { Uri.parse(normalized) }.getOrNull()
+                if (parsed != null && parsed.scheme in listOf("https", "http") && !parsed.host.isNullOrBlank() && parsed.userInfo == null) {
+                    pendingWebsite = parsed.toString()
+                } else {
+                    status = "Enter a valid website address. Only HTTP and HTTPS links are allowed."
+                }
+            },
+            enabled = websiteAddress.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Review & Open Website") }
+        Text(
+            "The website opens in your chosen browser. Maya does not log in, submit forms, or navigate pages automatically. After opening, return here and use Inspect to review accessible browser controls.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -127,6 +158,25 @@ fun VisualAutomationScreen(onBack: () -> Unit) {
             "Safety: Maya only acts after you select a specific visible label and confirm the exact action. The service does not record or upload screen content.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    if (pendingWebsite != null) {
+        AlertDialog(
+            onDismissRequest = { pendingWebsite = null },
+            title = { Text("Open website?") },
+            text = { Text("Open this address in your browser?\\n\\n$pendingWebsite") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = pendingWebsite.orEmpty()
+                    val opened = runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                    }.isSuccess
+                    status = if (opened) "Browser launch requested for $target." else "Could not open this website. Check that a browser is installed."
+                    pendingWebsite = null
+                }) { Text("Open") }
+            },
+            dismissButton = { TextButton(onClick = { pendingWebsite = null }) { Text("Cancel") } }
         )
     }
 
