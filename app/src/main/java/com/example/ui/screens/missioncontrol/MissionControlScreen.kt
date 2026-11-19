@@ -168,12 +168,13 @@ fun MissionControlScreen(
                             .fillMaxWidth()
                             .clickable {
                                 when (page.id) {
-                                    "maya" -> onOpenChat()
-                                    "voice", "socialcontrol" -> onOpenVoice()
+                                    "maya", "sources" -> onOpenChat()
+                                    "voice", "socialcontrol", "automation" -> onOpenVoice()
                                     "studio", "production" -> onOpenTools()
-                                    "deliverables" -> onOpenHistory()
-                                    "settings", "brain" -> onOpenSettings()
-                                    "appfactory", "termux", "workspace" -> selectedPageId = "appfactory"
+                                    "deliverables", "memory" -> onOpenHistory()
+                                    "settings", "brain", "security" -> onOpenSettings()
+                                    "agentflow" -> selectedPageId = "missions"
+                                    "appfactory", "termux", "workspace", "systemhealth" -> selectedPageId = "appfactory"
                                     else -> selectedPageId = page.id
                                 }
                             },
