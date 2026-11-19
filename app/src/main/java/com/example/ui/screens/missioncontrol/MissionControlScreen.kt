@@ -160,6 +160,15 @@ fun MissionControlScreen(
                 color = MaterialTheme.colorScheme.primary
             )
         }
+        if (selectedPageId == "dashboard" && query.isBlank()) {
+            item {
+                MissionVisualDashboard(
+                    onOpenPage = { pageId -> selectedPageId = pageId },
+                    onOpenChat = onOpenChat,
+                    onOpenTools = onOpenTools
+                )
+            }
+        }
         if (filteredPages.isEmpty()) {
             item {
                 Text(
