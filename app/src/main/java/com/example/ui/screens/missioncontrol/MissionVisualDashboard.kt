@@ -190,6 +190,28 @@ fun MissionVisualDashboard(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             VisualModuleCard(
+                icon = "🧩",
+                title = "Workflow Builder",
+                detail = "Create reusable task flows",
+                accent = Color(0xFF80CBC4),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("workflowbuilder") }
+            )
+            VisualModuleCard(
+                icon = "🧭",
+                title = "Agent Workflow",
+                detail = "Run queued assignments",
+                accent = Color(0xFF9C8CFF),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("agentflow") }
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            VisualModuleCard(
                 icon = "🎬",
                 title = "Media Studio",
                 detail = "Open available media tools",
