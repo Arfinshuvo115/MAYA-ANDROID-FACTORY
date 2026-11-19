@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +42,7 @@ fun MissionQueueScreen(onBack: () -> Unit) {
     val tasks = remember { mutableStateListOf<MissionTask>() }
     val scope = rememberCoroutineScope()
     var runningTaskId by remember { mutableStateOf<String?>(null) }
+    var pendingDelete by remember { mutableStateOf<MissionTask?>(null) }
     val pipelineErrors = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
     var title by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
@@ -191,6 +194,9 @@ fun MissionQueueScreen(onBack: () -> Unit) {
                                         refresh()
                                     }) { Text("Run again") }
                                 }
+                                if (task.status != MissionQueueRepository.STATUS_ACTIVE) {
+                                    OutlinedButton(onClick = { pendingDelete = task }) { Text("Delete") }
+                                }
                             }
                             pipelineErrors[task.id]?.let { message ->
                                 Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -208,6 +214,28 @@ fun MissionQueueScreen(onBack: () -> Unit) {
             "Agent connection: Run 16 Agents makes 16 sequential specialist passes through your configured Gemini model. When Tavily is configured, live search snippets are handed to the Researcher. This is one model orchestrated into specialist roles, not 16 independent services. It saves a report locally and does not silently edit files or perform external actions.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    pendingDelete?.let { task ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete mission?") },
+            text = { Text("${task.title} will be removed from this device's Mission Queue, including its saved report. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    runCatching { repository.remove(task.id) }
+                        .onSuccess {
+                            pendingDelete = null
+                            pipelineErrors.remove(task.id)
+                            refresh()
+                        }
+                        .onFailure { error = it.message ?: "Could not remove mission." }
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+            }
         )
     }
 }
