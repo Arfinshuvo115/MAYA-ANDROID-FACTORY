@@ -168,9 +168,10 @@ object MissionRegressionTestPlanner {
 
         fun add(title: String, area: String, priority: String, type: String, rationale: String,
                 steps: List<String>, expected: String, evidence: String) {
+            val testId = "RT-" + sequence.toString().padStart(2, '0')
+            sequence += 1
             cases += TestCase(
-                "RT-${sequence++.toString().padStart(2, '0')}", title, area, priority, type,
-                rationale, steps, expected, evidence
+                testId, title, area, priority, type, rationale, steps, expected, evidence
             )
         }
 
