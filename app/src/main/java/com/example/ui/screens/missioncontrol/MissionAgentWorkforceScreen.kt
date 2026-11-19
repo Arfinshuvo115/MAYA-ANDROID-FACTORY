@@ -149,6 +149,7 @@ fun MissionAgentWorkforceScreen(onBack: () -> Unit) {
                             progress = "All ${result.stages.size}/${MissionAgentRoster.agents.size} specialist passes completed. Report saved locally."
                             activeAgentId = null
                         } catch (cancelled: CancellationException) {
+                            activeAgentId?.let { agentStates[it] = "PAUSED" }
                             repository.setStatus(task.id, MissionQueueRepository.STATUS_PAUSED)
                             progress = "Run cancelled; mission paused."
                             throw cancelled
