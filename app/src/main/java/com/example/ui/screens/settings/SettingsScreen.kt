@@ -81,6 +81,8 @@ fun SettingsScreen(
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
     val keyStatus by viewModel.keyStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val geminiKeySavedMessage = stringResource(R.string.settings_gemini_key_saved)
+    val geminiKeyClearedMessage = stringResource(R.string.settings_gemini_key_cleared)
 
     var showClearDialog by remember { mutableStateOf(false) }
     var apiKeyDraft by rememberSaveable(prefs.geminiApiKey) { mutableStateOf(prefs.geminiApiKey) }
@@ -312,10 +314,7 @@ fun SettingsScreen(
                             onClick = {
                                 viewModel.saveGeminiApiKey(apiKeyDraft) { saved ->
                                     onShowSnackbar(
-                                        context.getString(
-                                            if (saved) R.string.settings_gemini_key_saved
-                                            else R.string.settings_gemini_key_cleared
-                                        )
+                                        if (saved) geminiKeySavedMessage else geminiKeyClearedMessage
                                     )
                                 }
                             },
@@ -361,7 +360,7 @@ fun SettingsScreen(
                             onClick = {
                                 apiKeyDraft = ""
                                 viewModel.clearGeminiApiKey {
-                                    onShowSnackbar(context.getString(R.string.settings_gemini_key_cleared))
+                                    onShowSnackbar(geminiKeyClearedMessage)
                                 }
                             },
                             colors = ButtonDefaults.textButtonColors(
