@@ -27,7 +27,10 @@ private val Context.mayaDataStore: DataStore<Preferences> by preferencesDataStor
 
 class PreferencesRepository(context: Context) {
 
-    private val dataStore = context.applicationContext.mayaDataStore
+    private val appContext = context.applicationContext
+    private val dataStore = appContext.mayaDataStore
+    private val secureCredentialStore = SecureCredentialStore(appContext)
+    private val credentialMutex = Mutex()
 
     val preferences: Flow<UserPreferences> = dataStore.data.map { prefs ->
         UserPreferences(
@@ -50,11 +53,38 @@ class PreferencesRepository(context: Context) {
             preferredVoicePreset = prefs[KEY_VOICE_PRESET]?.let { name ->
                 GeminiVoicePreset.entries.firstOrNull { it.name == name }
             } ?: GeminiVoicePreset.SULAFAT,
-            geminiApiKey = prefs[KEY_GEMINI_API_KEY].orEmpty(),
-            tavilyApiKey = prefs[KEY_TAVILY_API_KEY].orEmpty(),
+            geminiApiKey = readSecureCredential(GEMINI_CREDENTIAL_ID),
+            tavilyApiKey = readSecureCredential(TAVILY_CREDENTIAL_ID),
             geminiModelId = prefs[KEY_GEMINI_MODEL]?.takeIf { it.isNotBlank() }
                 ?: UserPreferences.DEFAULT_GEMINI_MODEL
         )
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * Migrates legacy plaintext API keys. Each value is encrypted before the
+     * corresponding DataStore field is removed. If encryption fails, the
+     * plaintext value remains available for a later retry.
+     */
+    suspend fun migrateLegacyApiKeys() = withContext(Dispatchers.IO) {
+        credentialMutex.withLock {
+            val legacy = dataStore.data.first()
+            val legacyGemini = legacy[KEY_GEMINI_API_KEY].orEmpty().trim()
+            val legacyTavily = legacy[KEY_TAVILY_API_KEY].orEmpty().trim()
+
+            if (legacyGemini.isNotEmpty()) {
+                val encryptedValue = runCatching { secureCredentialStore.get(GEMINI_CREDENTIAL_ID) }.getOrNull()
+                if (encryptedValue.isNullOrEmpty()) secureCredentialStore.put(GEMINI_CREDENTIAL_ID, legacyGemini)
+            }
+            if (legacyTavily.isNotEmpty()) {
+                val encryptedValue = runCatching { secureCredentialStore.get(TAVILY_CREDENTIAL_ID) }.getOrNull()
+                if (encryptedValue.isNullOrEmpty()) secureCredentialStore.put(TAVILY_CREDENTIAL_ID, legacyTavily)
+            }
+
+            dataStore.edit { prefs ->
+                prefs.remove(KEY_GEMINI_API_KEY)
+                prefs.remove(KEY_TAVILY_API_KEY)
+            }
+        }
     }
 
     suspend fun setDefaultPersona(persona: MayaPersona) {
@@ -85,34 +115,39 @@ class PreferencesRepository(context: Context) {
         dataStore.edit { it[KEY_VOICE_PRESET] = voice.name }
     }
 
-    suspend fun setGeminiApiKey(apiKey: String) {
+    suspend fun setGeminiApiKey(apiKey: String) = withContext(Dispatchers.IO) {
         val cleaned = apiKey.trim()
-        dataStore.edit { prefs ->
-            if (cleaned.isEmpty()) {
-                prefs.remove(KEY_GEMINI_API_KEY)
-            } else {
-                prefs[KEY_GEMINI_API_KEY] = cleaned
-            }
+        credentialMutex.withLock {
+            if (cleaned.isEmpty()) secureCredentialStore.remove(GEMINI_CREDENTIAL_ID)
+            else secureCredentialStore.put(GEMINI_CREDENTIAL_ID, cleaned)
+            dataStore.edit { it.remove(KEY_GEMINI_API_KEY) }
         }
     }
 
-    suspend fun clearGeminiApiKey() {
-        dataStore.edit { it.remove(KEY_GEMINI_API_KEY) }
-    }
+    suspend fun clearGeminiApiKey() = setGeminiApiKey("")
 
-    suspend fun setTavilyApiKey(apiKey: String) {
+    suspend fun setTavilyApiKey(apiKey: String) = withContext(Dispatchers.IO) {
         val cleaned = apiKey.trim()
-        dataStore.edit { prefs ->
-            if (cleaned.isEmpty()) prefs.remove(KEY_TAVILY_API_KEY)
-            else prefs[KEY_TAVILY_API_KEY] = cleaned
+        credentialMutex.withLock {
+            if (cleaned.isEmpty()) secureCredentialStore.remove(TAVILY_CREDENTIAL_ID)
+            else secureCredentialStore.put(TAVILY_CREDENTIAL_ID, cleaned)
+            dataStore.edit { it.remove(KEY_TAVILY_API_KEY) }
         }
     }
+
+    suspend fun clearTavilyApiKey() = setTavilyApiKey("")
+
+    private fun readSecureCredential(credentialId: String): String =
+        runCatching { secureCredentialStore.get(credentialId) }.getOrNull().orEmpty()
 
     suspend fun setGeminiModelId(modelId: String) {
         dataStore.edit { it[KEY_GEMINI_MODEL] = modelId }
     }
 
     private companion object {
+        const val GEMINI_CREDENTIAL_ID = "gemini_api_key"
+        const val TAVILY_CREDENTIAL_ID = "tavily_api_key"
+
         val KEY_PERSONA = stringPreferencesKey("default_persona")
         val KEY_THEME = stringPreferencesKey("theme_mode")
         val KEY_RESPONSE_LENGTH = stringPreferencesKey("response_length")
