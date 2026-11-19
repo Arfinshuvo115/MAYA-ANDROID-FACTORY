@@ -121,6 +121,36 @@ class HybridMayaAiRepository(
         )
     }
 
+
+    override suspend fun synthesizeGeminiSpeech(
+        text: String,
+        voice: GeminiVoicePreset,
+        tone: VoiceTone,
+        accent: BanglaAccent
+    ): Result<ByteArray> {
+        val prefs = preferencesRepository.preferences.first()
+        if (prefs.geminiApiKey.isBlank()) {
+            return Result.failure(IllegalStateException("Gemini API key is not configured; using device TTS fallback."))
+        }
+        val toneStyle = when (tone) {
+            VoiceTone.WARM -> "Warm, affectionate, natural young adult female voice; friendly, cute, emotionally expressive, conversational and clear."
+            VoiceTone.CHEERFUL -> "Bright, cheerful, playful and cute female voice, smiling delivery, lively but natural."
+            VoiceTone.CALM -> "Soft, soothing, caring female voice, gentle pace and reassuring warmth."
+            VoiceTone.INFORMATIVE -> "Clear, confident female voice, natural conversational rhythm and precise pronunciation."
+        }
+        val accentStyle = when (accent) {
+            BanglaAccent.BN_BD -> "Use native Bangladeshi Bengali pronunciation and a natural Bangladesh Bengali accent."
+            BanglaAccent.BN_IN -> "Use native Indian Bengali pronunciation and a natural West Bengal Bengali accent."
+        }
+        val style = "$toneStyle $accentStyle"
+        return geminiRestClient.synthesizeSpeech(
+            apiKey = prefs.geminiApiKey,
+            text = text,
+            voiceName = voice.voiceName,
+            style = style
+        )
+    }
+
     override suspend fun synthesizeBanglaVoice(
         text: String,
         voice: GeminiVoicePreset,

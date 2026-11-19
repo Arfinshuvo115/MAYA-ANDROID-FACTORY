@@ -185,6 +185,7 @@ data class UserPreferences(
     val banglaAccent: BanglaAccent = BanglaAccent.BN_BD,
     val preferredVoicePreset: GeminiVoicePreset = GeminiVoicePreset.SULAFAT,
     val geminiApiKey: String = "",
+    val tavilyApiKey: String = "",
     val geminiModelId: String = DEFAULT_GEMINI_MODEL
 ) {
     companion object {

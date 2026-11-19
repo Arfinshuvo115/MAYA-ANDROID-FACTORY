@@ -5,6 +5,7 @@
     <string name="nav_studio">Studio</string>
     <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
+    <string name="nav_mission_control">Mission</string>
 
     <string name="voice_title">Bangla Voice</string>
     <string name="voice_subtitle">Natural Bangla &amp; bilingual speech playback</string>
@@ -85,4 +86,7 @@
     <string name="settings_clear_confirm_body">This permanently removes all saved Maya chat threads and AI Studio results from this device.</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_clear">Clear</string>
+
+    <string name="mission_control_accessibility_label">Maya approved screen actions</string>
+    <string name="mission_control_accessibility_description">Allows Maya to locate and interact with visible controls or editable fields only after you explicitly tap an action in Maya. Screen content is not recorded, stored, or uploaded.</string>
 </resources>

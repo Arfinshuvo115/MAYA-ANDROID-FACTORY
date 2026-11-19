@@ -16,3 +16,6 @@ data object HistoryRoute
 
 @Serializable
 data object SettingsRoute
+
+@Serializable
+data object MissionControlRoute

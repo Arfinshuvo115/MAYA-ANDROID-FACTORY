@@ -1,5 +1,8 @@
 package com.example.ui.screens.settings
 
+import android.content.Intent
+import android.provider.Settings
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -78,6 +81,8 @@ fun SettingsScreen(
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
     val keyStatus by viewModel.keyStatus.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val geminiKeySavedMessage = stringResource(R.string.settings_gemini_key_saved)
+    val geminiKeyClearedMessage = stringResource(R.string.settings_gemini_key_cleared)
 
     var showClearDialog by remember { mutableStateOf(false) }
     var apiKeyDraft by rememberSaveable(prefs.geminiApiKey) { mutableStateOf(prefs.geminiApiKey) }
@@ -104,6 +109,55 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_title),
                     subtitle = "Calibrate Gemini API key, J.A.R.V.I.S. HUD theme, Bangla audio, and persistence"
                 )
+
+                // Mission Control device actions require the user's explicit Android consent.
+                JarvisHudCard(
+                    telemetryTag = "MISSION CONTROL // DEVICE ACCESS",
+                    accentColor = MaterialTheme.colorScheme.tertiary
+                ) {
+                    Text(
+                        text = "Phone & App Control",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Enable Maya's accessibility bridge in Android Settings. Android displays its own consent screen; Maya cannot enable this permission silently.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open Android Accessibility Settings")
+                    }
+                }
+
+                // Admin authentication stays unavailable until the real backend pairing contract is supplied.
+                JarvisHudCard(
+                    telemetryTag = "SECURITY // ADMIN DEVICE PAIRING",
+                    accentColor = MaterialTheme.colorScheme.secondary
+                ) {
+                    Text(
+                        text = "Admin Authentication & Device Pairing",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    JarvisStatusPill(
+                        text = "ADMIN SESSION // NOT PAIRED",
+                        accentColor = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = "Secure storage for a future backend-issued session is ready. Device pairing is not active because this repository contains no verified admin pairing or token-exchange API contract. No admin password or secret is requested or stored here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Required before activation: the backend base URL, documented pairing request/response, session expiry and refresh rules, and server-side revocation behavior.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 // Engine Status Card
                 JarvisHudCard(
@@ -260,10 +314,7 @@ fun SettingsScreen(
                             onClick = {
                                 viewModel.saveGeminiApiKey(apiKeyDraft) { saved ->
                                     onShowSnackbar(
-                                        context.getString(
-                                            if (saved) R.string.settings_gemini_key_saved
-                                            else R.string.settings_gemini_key_cleared
-                                        )
+                                        if (saved) geminiKeySavedMessage else geminiKeyClearedMessage
                                     )
                                 }
                             },
@@ -309,7 +360,7 @@ fun SettingsScreen(
                             onClick = {
                                 apiKeyDraft = ""
                                 viewModel.clearGeminiApiKey {
-                                    onShowSnackbar(context.getString(R.string.settings_gemini_key_cleared))
+                                    onShowSnackbar(geminiKeyClearedMessage)
                                 }
                             },
                             colors = ButtonDefaults.textButtonColors(

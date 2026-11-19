@@ -1,6 +1,8 @@
 package com.example.util
 
 import android.content.Context
+import android.media.MediaPlayer
+import java.io.File
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import com.example.domain.model.AppLanguage
@@ -23,6 +25,9 @@ class SpeechHelper(context: Context) {
 
     private var isReady = false
     private var tts: TextToSpeech? = null
+    private var audioPlayer: MediaPlayer? = null
+    private var activeAudioFile: File? = null
+    private val appContext = context.applicationContext
 
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
@@ -111,15 +116,61 @@ class SpeechHelper(context: Context) {
         tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 
+
+    fun playGeminiAudio(audioBytes: ByteArray, messageId: String) {
+        stop()
+        val audioFile = File(appContext.cacheDir, "maya_tts_${UUID.randomUUID()}.wav")
+        activeAudioFile = audioFile
+        runCatching {
+            require(audioBytes.isNotEmpty()) { "Gemini returned an empty audio payload." }
+            audioFile.writeBytes(audioBytes)
+            val player = MediaPlayer()
+            audioPlayer = player
+            player.setDataSource(audioFile.absolutePath)
+            player.setOnPreparedListener {
+                _speakingMessageId.value = messageId
+                it.start()
+            }
+            player.setOnCompletionListener {
+                _speakingMessageId.value = null
+                it.release()
+                if (audioPlayer === it) audioPlayer = null
+                deleteAudioFile(audioFile)
+            }
+            player.setOnErrorListener { mp, _, _ ->
+                _speakingMessageId.value = null
+                mp.release()
+                if (audioPlayer === mp) audioPlayer = null
+                deleteAudioFile(audioFile)
+                true
+            }
+            player.prepareAsync()
+        }.onFailure {
+            audioPlayer?.release()
+            audioPlayer = null
+            deleteAudioFile(audioFile)
+            _speakingMessageId.value = null
+        }
+    }
+
+    private fun deleteAudioFile(file: File) {
+        if (activeAudioFile == file) activeAudioFile = null
+        runCatching { file.delete() }
+    }
+
     fun stop() {
         tts?.stop()
+        val player = audioPlayer
+        audioPlayer = null
+        runCatching { player?.stop() }
+        player?.release()
+        activeAudioFile?.let(::deleteAudioFile)
         _speakingMessageId.value = null
     }
 
     fun shutdown() {
-        tts?.stop()
+        stop()
         tts?.shutdown()
         tts = null
-        _speakingMessageId.value = null
     }
 }

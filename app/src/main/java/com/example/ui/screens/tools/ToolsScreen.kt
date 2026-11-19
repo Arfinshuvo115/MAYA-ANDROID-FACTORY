@@ -52,7 +52,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -79,7 +78,7 @@ fun ToolsScreen(
     val runState by viewModel.runState.collectAsStateWithLifecycle()
 
     val clipboard = LocalClipboardManager.current
-    val context = LocalContext.current
+    val chatCopiedMessage = stringResource(R.string.chat_copied)
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -163,7 +162,7 @@ fun ToolsScreen(
                                 runState = runState,
                                 onCopy = { md ->
                                     clipboard.setText(AnnotatedString(md))
-                                    onShowSnackbar(context.getString(R.string.chat_copied))
+                                    onShowSnackbar(chatCopiedMessage)
                                 },
                                 onContinueInChat = onContinueInChat
                             )
@@ -197,7 +196,7 @@ fun ToolsScreen(
                             runState = runState,
                             onCopy = { md ->
                                 clipboard.setText(AnnotatedString(md))
-                                onShowSnackbar(context.getString(R.string.chat_copied))
+                                onShowSnackbar(chatCopiedMessage)
                             },
                             onContinueInChat = onContinueInChat
                         )

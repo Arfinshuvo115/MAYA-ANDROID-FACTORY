@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,11 +55,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.R
+import com.example.data.ai.AiRepository
 import com.example.ui.components.jarvisHudBackdrop
 import com.example.ui.screens.chat.ChatScreen
 import com.example.ui.screens.chat.ChatViewModel
 import com.example.ui.screens.history.HistoryScreen
 import com.example.ui.screens.history.HistoryViewModel
+import com.example.ui.screens.missioncontrol.MissionControlScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.settings.SettingsViewModel
 import com.example.ui.screens.tools.ToolsScreen
@@ -77,6 +80,8 @@ private data class TopLevelDestination(
 
 @Composable
 fun MayaAppShell(
+    aiRepository: AiRepository,
+    openAndroidIdeRequestId: Int,
     chatViewModel: ChatViewModel,
     voiceViewModel: VoiceViewModel,
     toolsViewModel: ToolsViewModel,
@@ -88,6 +93,13 @@ fun MayaAppShell(
     val currentDestination = navBackStackEntry?.destination
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(openAndroidIdeRequestId) {
+        if (openAndroidIdeRequestId > 0) {
+            navController.navigate(MissionControlRoute) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     val showSnackbar: (String) -> Unit = { message ->
         coroutineScope.launch {
@@ -118,6 +130,13 @@ fun MayaAppShell(
                 selectedIcon = Icons.Filled.AutoAwesome,
                 unselectedIcon = Icons.Outlined.AutoAwesome,
                 testTag = "nav_studio"
+            ),
+            TopLevelDestination(
+                route = MissionControlRoute,
+                labelRes = R.string.nav_mission_control,
+                selectedIcon = Icons.Filled.AutoAwesome,
+                unselectedIcon = Icons.Outlined.AutoAwesome,
+                testTag = "nav_mission_control"
             ),
             TopLevelDestination(
                 route = HistoryRoute,
@@ -276,6 +295,17 @@ fun MayaAppShell(
                                     navigateTo(ChatRoute)
                                 },
                                 onShowSnackbar = showSnackbar
+                            )
+                        }
+                        composable<MissionControlRoute> {
+                            MissionControlScreen(
+                                aiRepository = aiRepository,
+                                initialPageRequestId = openAndroidIdeRequestId,
+                                onOpenChat = { navigateTo(ChatRoute) },
+                                onOpenVoice = { navigateTo(VoiceRoute) },
+                                onOpenTools = { navigateTo(ToolsRoute) },
+                                onOpenHistory = { navigateTo(HistoryRoute) },
+                                onOpenSettings = { navigateTo(SettingsRoute) }
                             )
                         }
                         composable<HistoryRoute> {

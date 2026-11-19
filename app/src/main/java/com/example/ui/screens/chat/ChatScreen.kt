@@ -105,6 +105,7 @@ fun ChatScreen(
     val sttState by viewModel.speechToTextState.collectAsStateWithLifecycle()
 
     val clipboard = LocalClipboardManager.current
+    val chatCopiedMessage = stringResource(R.string.chat_copied)
     val context = LocalContext.current
     val listState = rememberLazyListState()
 
@@ -212,7 +213,7 @@ fun ChatScreen(
                             isSpeaking = speakingMessageId == msg.id,
                             onCopy = { text ->
                                 clipboard.setText(AnnotatedString(text))
-                                onShowSnackbar(context.getString(R.string.chat_copied))
+                                onShowSnackbar(chatCopiedMessage)
                             },
                             onToggleSpeak = viewModel::toggleSpeak
                         )

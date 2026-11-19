@@ -35,6 +35,13 @@ interface AiRepository {
         responseLength: ResponseLength
     ): StudioResult
 
+    suspend fun synthesizeGeminiSpeech(
+        text: String,
+        voice: GeminiVoicePreset,
+        tone: VoiceTone,
+        accent: BanglaAccent
+    ): Result<ByteArray>
+
     suspend fun synthesizeBanglaVoice(
         text: String,
         voice: GeminiVoicePreset,

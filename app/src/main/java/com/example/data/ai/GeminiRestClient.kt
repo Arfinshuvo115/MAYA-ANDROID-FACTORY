@@ -145,6 +145,78 @@ class GeminiRestClient(private val context: Context) {
         }
     }.flowOn(Dispatchers.IO)
 
+
+    suspend fun synthesizeSpeech(
+        apiKey: String,
+        text: String,
+        voiceName: String,
+        style: String
+    ): Result<ByteArray> = withContext(Dispatchers.IO) {
+        val cleanedKey = apiKey.trim()
+        if (cleanedKey.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
+        }
+        var connection: HttpURLConnection? = null
+        try {
+            val requestPayload = buildJsonObject {
+                putJsonArray("contents") {
+                    add(buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("parts") {
+                            add(buildJsonObject {
+                                put("text", text)
+                                putJsonObject("speechMetadata") {
+                                    put("style", style)
+                                }
+                            })
+                        }
+                    })
+                }
+                putJsonObject("generationConfig") {
+                    putJsonArray("responseModalities") { add(kotlinx.serialization.json.JsonPrimitive("AUDIO")) }
+                    putJsonObject("speechConfig") {
+                        putJsonObject("voiceConfig") {
+                            put("voice", voiceName)
+                        }
+                    }
+                }
+            }
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-tts:generateContent")
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = 15_000
+                readTimeout = 60_000
+                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("x-goog-api-key", cleanedKey)
+            }
+            connection.outputStream.use { out ->
+                out.write(requestPayload.toString().toByteArray(Charsets.UTF_8))
+            }
+            val code = connection.responseCode
+            val body = readResponseBody(connection, isError = code !in 200..299)
+            if (code !in 200..299) {
+                return@withContext Result.failure(IllegalStateException(extractErrorMessage(body, code)))
+            }
+            val audioBase64 = runCatching {
+                json.parseToJsonElement(body).jsonObject["candidates"]?.jsonArray
+                    ?.firstOrNull()?.jsonObject?.get("content")?.jsonObject
+                    ?.get("parts")?.jsonArray?.firstNotNullOfOrNull { part ->
+                        part.jsonObject["inlineData"]?.jsonObject?.get("data")?.jsonPrimitive?.contentOrNull
+                    }
+            }.getOrNull()
+            if (audioBase64.isNullOrBlank()) {
+                Result.failure(IllegalStateException("Gemini TTS returned no audio data."))
+            } else {
+                Result.success(Base64.decode(audioBase64, Base64.DEFAULT))
+            }
+        } catch (e: Exception) {
+            Result.failure(IllegalStateException(e.localizedMessage ?: "Gemini TTS request failed."))
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     suspend fun generateText(
         apiKey: String,
         modelId: String,
@@ -236,7 +308,7 @@ class GeminiRestClient(private val context: Context) {
             ResponseLength.DETAILED -> "Provide an in-depth, comprehensive answer with examples and clear headings."
         }
         val personaInstruction = when (persona) {
-            MayaPersona.ASSISTANT -> "You are Maya (with a subtle JARVIS-like calm, capable assistant style). Help clearly with daily tasks, reasoning, and planning."
+            MayaPersona.ASSISTANT -> "You are Maya, a warm, emotionally expressive Bengali-first personal AI companion and capable manager. Speak like a caring, playful, affectionate adult female friend: naturally cute, friendly, gently teasing when appropriate, empathetic when the user is upset, excited when good things happen, and calmly reassuring under stress. You may show mild playful annoyance or mock sulking only when context invites it; never manipulate, guilt-trip, claim romantic exclusivity, or pretend to be human. Match the user’s emotion and language, keep spoken replies concise and conversational, and be honest about what you can and cannot do."
             MayaPersona.CODER -> "You are Maya Architect, an expert Android, Kotlin, and Jetpack Compose engineer. Provide clean, production-grade code snippets."
             MayaPersona.CREATIVE -> "You are Maya Muse, a creative writer and storyteller with strong rhythm in both Bangla and English."
             MayaPersona.ANALYST -> "You are Maya Strategist, a structured analyst who compares trade-offs, pros/cons, and gives actionable recommendations."

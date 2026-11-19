@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,6 +18,7 @@ import com.example.data.ai.HybridMayaAiRepository
 import com.example.data.ai.LocalMayaAiRepository
 import com.example.data.local.ConversationStore
 import com.example.data.local.PreferencesRepository
+import com.example.missioncontrol.android.MayaAppCommandRouter
 import com.example.domain.model.ThemeMode
 import com.example.domain.model.UserPreferences
 import com.example.ui.navigation.MayaAppShell
@@ -26,16 +28,18 @@ import com.example.ui.screens.settings.SettingsViewModel
 import com.example.ui.screens.tools.ToolsViewModel
 import com.example.ui.screens.voice.VoiceViewModel
 import com.example.ui.theme.MayaTheme
-import com.example.util.SpeechHelper
-import com.example.util.SpeechRecognizerHelper
+import com.example.util.SpeechServicesViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var speechHelper: SpeechHelper
-    private lateinit var speechRecognizerHelper: SpeechRecognizerHelper
+    private val openAndroidIdeRequestId = MutableStateFlow(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.action == MayaAppCommandRouter.ACTION_OPEN_ANDROID_IDE) {
+            openAndroidIdeRequestId.value += 1
+        }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT)
@@ -49,8 +53,12 @@ class MainActivity : ComponentActivity() {
             localRepository = LocalMayaAiRepository(),
             geminiRestClient = geminiRestClient
         )
-        speechHelper = SpeechHelper(applicationContext)
-        speechRecognizerHelper = SpeechRecognizerHelper(applicationContext)
+        val speechServicesViewModel = ViewModelProvider(
+            this,
+            SpeechServicesViewModel.Factory(applicationContext)
+        )[SpeechServicesViewModel::class.java]
+        val speechHelper = speechServicesViewModel.speechHelper
+        val speechRecognizerHelper = speechServicesViewModel.speechRecognizerHelper
 
         val chatViewModel = ViewModelProvider(
             this,
@@ -68,8 +76,10 @@ class MainActivity : ComponentActivity() {
             VoiceViewModel.Factory(
                 aiRepository = aiRepository,
                 preferencesRepository = preferencesRepository,
+                conversationStore = conversationStore,
                 speechHelper = speechHelper,
-                speechRecognizerHelper = speechRecognizerHelper
+                speechRecognizerHelper = speechRecognizerHelper,
+                appCommandRouter = MayaAppCommandRouter(applicationContext)
             )
         )[VoiceViewModel::class.java]
 
@@ -97,6 +107,7 @@ class MainActivity : ComponentActivity() {
         )[SettingsViewModel::class.java]
 
         setContent {
+            val ideRequestId by openAndroidIdeRequestId.collectAsStateWithLifecycle()
             val prefs by settingsViewModel.preferences.collectAsStateWithLifecycle(
                 initialValue = UserPreferences()
             )
@@ -120,6 +131,8 @@ class MainActivity : ComponentActivity() {
             }
             MayaTheme(themeMode = prefs.themeMode) {
                 MayaAppShell(
+                    aiRepository = aiRepository,
+                    openAndroidIdeRequestId = ideRequestId,
                     chatViewModel = chatViewModel,
                     voiceViewModel = voiceViewModel,
                     toolsViewModel = toolsViewModel,
@@ -130,13 +143,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (::speechHelper.isInitialized) {
-            speechHelper.shutdown()
-        }
-        if (::speechRecognizerHelper.isInitialized) {
-            speechRecognizerHelper.destroy()
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == MayaAppCommandRouter.ACTION_OPEN_ANDROID_IDE) {
+            openAndroidIdeRequestId.value += 1
         }
     }
+
 }
