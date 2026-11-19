@@ -10,7 +10,8 @@ data class MissionTask(
     val title: String,
     val details: String,
     val status: String,
-    val createdAtMillis: Long
+    val createdAtMillis: Long,
+    val lastReport: String = ""
 )
 
 /**
@@ -36,7 +37,8 @@ class MissionQueueRepository(context: Context) {
                 title = title,
                 details = item.optString("details"),
                 status = item.optString("status", STATUS_QUEUED),
-                createdAtMillis = item.optLong("createdAtMillis")
+                createdAtMillis = item.optLong("createdAtMillis"),
+                lastReport = item.optString("lastReport")
             )
         }.sortedByDescending { it.createdAtMillis }
     }
@@ -65,6 +67,14 @@ class MissionQueueRepository(context: Context) {
         return true
     }
 
+    @Synchronized
+    fun setReport(id: String, report: String): Boolean {
+        val tasks = getAll()
+        if (tasks.none { it.id == id }) return false
+        save(tasks.map { if (it.id == id) it.copy(lastReport = report) else it })
+        return true
+    }
+
     private fun save(tasks: List<MissionTask>) {
         val array = JSONArray()
         tasks.forEach { task ->
@@ -75,6 +85,7 @@ class MissionQueueRepository(context: Context) {
                     .put("details", task.details)
                     .put("status", task.status)
                     .put("createdAtMillis", task.createdAtMillis)
+                    .put("lastReport", task.lastReport)
             )
         }
         check(preferences.edit().putString(KEY_TASKS, array.toString()).commit()) {
