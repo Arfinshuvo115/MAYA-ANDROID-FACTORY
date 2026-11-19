@@ -110,6 +110,10 @@ fun MissionControlScreen(
         AndroidIdeCodingAgentScreen(aiRepository = aiRepository, onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "missions") {
+        MissionQueueScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
