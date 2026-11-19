@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.example.missioncontrol.MissionAgentPipeline
 import com.example.missioncontrol.MissionQueueRepository
 import com.example.missioncontrol.MissionTask
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -103,6 +104,12 @@ fun MissionQueueScreen(onBack: () -> Unit) {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
 
+        Text("16 Specialist Agent Roster", style = MaterialTheme.typography.titleMedium)
+        Text(
+            com.example.missioncontrol.MissionAgentRoster.agents.joinToString("  •  ") { it.displayName },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Text("Saved missions · ${tasks.size}", style = MaterialTheme.typography.titleMedium)
         if (tasks.isEmpty()) {
             Text(
@@ -150,6 +157,9 @@ fun MissionQueueScreen(onBack: () -> Unit) {
                                                     val result = pipeline.run(task)
                                                     repository.setReport(task.id, result.toMarkdown())
                                                     repository.setStatus(task.id, MissionQueueRepository.STATUS_COMPLETED)
+                                                } catch (cancelled: CancellationException) {
+                                                    repository.setStatus(task.id, MissionQueueRepository.STATUS_PAUSED)
+                                                    throw cancelled
                                                 } catch (failure: Exception) {
                                                     pipelineErrors[task.id] = failure.message ?: "Agent workflow failed."
                                                     repository.setStatus(task.id, MissionQueueRepository.STATUS_PAUSED)
@@ -160,10 +170,10 @@ fun MissionQueueScreen(onBack: () -> Unit) {
                                             }
                                         }
                                     ) {
-                                        Text(if (runningTaskId == task.id) "Running…" else "Run 4 Agents")
+                                        Text(if (runningTaskId == task.id) "Running 16 Roles…" else "Run 16 Agents")
                                     }
                                     MissionQueueRepository.STATUS_ACTIVE -> Text(
-                                        if (runningTaskId == task.id) "Four agents are processing this mission…" else "Active",
+                                        if (runningTaskId == task.id) "16 specialist roles are processing this mission…" else "Active",
                                         style = MaterialTheme.typography.labelMedium
                                     )
                                 }
@@ -186,7 +196,7 @@ fun MissionQueueScreen(onBack: () -> Unit) {
                                 Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
                             if (task.lastReport.isNotBlank()) {
-                                Text("Saved four-agent report", style = MaterialTheme.typography.labelMedium)
+                                Text("Saved 16-role report", style = MaterialTheme.typography.labelMedium)
                                 Text(task.lastReport, style = MaterialTheme.typography.bodySmall)
                             }
                         }
@@ -195,7 +205,7 @@ fun MissionQueueScreen(onBack: () -> Unit) {
             }
         }
         Text(
-            "Agent connection: Run 4 Agents calls the configured Gemini model sequentially as Planner, Researcher, Developer and Reviewer. The reviewed report is saved on this device. It does not silently edit project files, browse the web, or perform external actions.",
+            "Agent connection: Run 16 Agents makes 16 sequential specialist passes through your configured Gemini model. When Tavily is configured, live search snippets are handed to the Researcher. This is one model orchestrated into specialist roles, not 16 independent services. It saves a report locally and does not silently edit files or perform external actions.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
