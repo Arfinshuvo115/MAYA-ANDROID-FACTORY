@@ -141,6 +141,10 @@ fun MissionControlScreen(
         MissionAnalyticsScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "brain") {
+        MissionAiProvidersScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
