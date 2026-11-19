@@ -108,7 +108,6 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
         message = "Starting ${MissionAgentRoster.agents.firstOrNull { it.id == item.agentId }?.displayName ?: item.agentId}…"
         assignmentRepository.setStatus(item.id, MissionAgentTaskRepository.STATUS_RUNNING)
         refreshAssignments()
-        val previousHandoffs = assignmentRepository.previousHandoffs(item)
         val sharedMemoryContext = memoryRepository.contextFor(item)
         scope.launch {
             try {
@@ -118,7 +117,7 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
                     agent = agent,
                     assignmentTitle = item.title,
                     assignmentInstructions = item.instructions,
-                    previousHandoff = previousHandoffs,
+                    previousHandoff = "",
                     sharedMemoryContext = sharedMemoryContext
                 )
                 assignmentRepository.complete(item.id, output)
