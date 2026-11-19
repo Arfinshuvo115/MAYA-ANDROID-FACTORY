@@ -137,7 +137,7 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
         }
 
         Text(
-            "Assignments are stored on this device. Each specialist task runs only after you press Run. Completed handoffs are passed to later tasks in creation order; no remote worker or background execution is implied.",
+            "Assignments are stored on this device. Tasks unlock in creation order: a later task waits until earlier assignments complete, so each specialist receives the completed handoffs before it runs. Each task runs only after you press Run; no remote worker or background execution is implied.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -246,6 +246,11 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
                 ) {
                     items(assignments, key = { it.id }) { item ->
                         val agent = MissionAgentRoster.agents.firstOrNull { it.id == item.agentId }
+                        val earlierTasksCompleted = assignments.takeWhile { it.id != item.id }
+                            .all { it.status == MissionAgentTaskRepository.STATUS_COMPLETED }
+                        val canRun = earlierTasksCompleted &&
+                            item.status != MissionAgentTaskRepository.STATUS_COMPLETED &&
+                            item.status != MissionAgentTaskRepository.STATUS_RUNNING
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -275,8 +280,7 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(
-                                        enabled = runningAssignmentId == null &&
-                                            item.status != MissionAgentTaskRepository.STATUS_COMPLETED,
+                                        enabled = runningAssignmentId == null && canRun,
                                         onClick = {
                                             if (item.status == MissionAgentTaskRepository.STATUS_FAILED) {
                                                 assignmentRepository.setStatus(item.id, MissionAgentTaskRepository.STATUS_QUEUED)
@@ -285,7 +289,15 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
                                             runAssignment(item.copy(status = MissionAgentTaskRepository.STATUS_QUEUED))
                                         }
                                     ) {
-                                        Text(if (item.status == MissionAgentTaskRepository.STATUS_FAILED) "Retry" else "Run assigned task")
+                                        Text(
+                                            when {
+                                                item.status == MissionAgentTaskRepository.STATUS_COMPLETED -> "Completed"
+                                                item.status == MissionAgentTaskRepository.STATUS_RUNNING -> "Running"
+                                                !earlierTasksCompleted -> "Waiting for earlier task"
+                                                item.status == MissionAgentTaskRepository.STATUS_FAILED -> "Retry"
+                                                else -> "Run assigned task"
+                                            }
+                                        )
                                     }
                                 }
                             }
