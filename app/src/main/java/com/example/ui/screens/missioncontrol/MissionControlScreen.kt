@@ -165,7 +165,8 @@ fun MissionControlScreen(
                 MissionVisualDashboard(
                     onOpenPage = { pageId -> selectedPageId = pageId },
                     onOpenChat = onOpenChat,
-                    onOpenTools = onOpenTools
+                    onOpenTools = onOpenTools,
+                    onOpenSettings = onOpenSettings
                 )
             }
         }
