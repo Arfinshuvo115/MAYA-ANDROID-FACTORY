@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.missioncontrol.MissionAgentMemoryItem
+import com.example.missioncontrol.MissionAgentMemoryRepository
 import com.example.missioncontrol.MissionAgentPipeline
 import com.example.missioncontrol.MissionAgentRoster
 import com.example.missioncontrol.MissionAgentTaskRepository
@@ -47,9 +50,11 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val missionRepository = remember(context) { MissionQueueRepository(context) }
     val assignmentRepository = remember(context) { MissionAgentTaskRepository(context) }
+    val memoryRepository = remember(context) { MissionAgentMemoryRepository(context) }
     val pipeline = remember(context) { MissionAgentPipeline(context) }
     val missions = remember { mutableStateListOf<MissionTask>() }
     val assignments = remember { mutableStateListOf<MissionAgentWorkItem>() }
+    val memories = remember { mutableStateListOf<MissionAgentMemoryItem>() }
     val scope = rememberCoroutineScope()
 
     var selectedMissionId by remember { mutableStateOf<String?>(null) }
@@ -60,6 +65,7 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
     var runningAssignmentId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("Create a specialist assignment or run a queued task.") }
     var error by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteMemoryId by remember { mutableStateOf<String?>(null) }
 
     fun refreshMissions() {
         missions.clear()
@@ -74,11 +80,17 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
         selectedMissionId?.let { assignments.addAll(assignmentRepository.getForMission(it)) }
     }
 
+    fun refreshMemories() {
+        memories.clear()
+        selectedMissionId?.let { memories.addAll(memoryRepository.getForMission(it)) }
+    }
+
     LaunchedEffect(missionRepository) {
         refreshMissions()
     }
     LaunchedEffect(selectedMissionId) {
         refreshAssignments()
+        refreshMemories()
     }
 
     val selectedMission = missions.firstOrNull { it.id == selectedMissionId }
@@ -97,6 +109,7 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
         assignmentRepository.setStatus(item.id, MissionAgentTaskRepository.STATUS_RUNNING)
         refreshAssignments()
         val previousHandoffs = assignmentRepository.previousHandoffs(item)
+        val sharedMemoryContext = memoryRepository.contextFor(item)
         scope.launch {
             try {
                 val agent = MissionAgentRoster.agents.first { it.id == item.agentId }
@@ -105,10 +118,13 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
                     agent = agent,
                     assignmentTitle = item.title,
                     assignmentInstructions = item.instructions,
-                    previousHandoff = previousHandoffs
+                    previousHandoff = previousHandoffs,
+                    sharedMemoryContext = sharedMemoryContext
                 )
                 assignmentRepository.complete(item.id, output)
-                message = "Completed: ${agent.displayName}. Handoff saved for subsequent assignments."
+                memoryRepository.rememberCompletedHandoff(item, output)
+                refreshMemories()
+                message = "Completed: ${agent.displayName}. Handoff and mission memory saved for subsequent assignments."
             } catch (cancelled: CancellationException) {
                 assignmentRepository.setStatus(item.id, MissionAgentTaskRepository.STATUS_QUEUED)
                 message = "Assignment cancelled and returned to QUEUED."
@@ -236,7 +252,31 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
                 }
             ) { Text("Save Agent Assignment") }
 
-            Text("3. Assignment queue (${assignments.size})", style = MaterialTheme.typography.titleMedium)
+            Text("3. Mission Memory (${memories.size})", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Only successful task handoffs are saved. Memory is restricted to this mission and is supplied as untrusted context to later assignments.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (memories.isEmpty()) {
+                Text("No saved memory for this mission yet.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                memories.forEach { memory ->
+                    val sourceAgent = MissionAgentRoster.agents.firstOrNull { it.id == memory.sourceAgentId }?.displayName ?: memory.sourceAgentId
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                        Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(memory.sourceTaskTitle, style = MaterialTheme.typography.titleSmall)
+                            Text("From $sourceAgent · ${memory.tags.joinToString()}", style = MaterialTheme.typography.bodySmall)
+                            Text(memory.content.take(260), style = MaterialTheme.typography.bodySmall)
+                            OutlinedButton(onClick = { pendingDeleteMemoryId = memory.id }, enabled = runningAssignmentId == null) {
+                                Text("Remove this memory")
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text("4. Assignment queue (${assignments.size})", style = MaterialTheme.typography.titleMedium)
             if (assignments.isEmpty()) {
                 Text("No assignments for this mission yet.", style = MaterialTheme.typography.bodySmall)
             } else {
@@ -311,5 +351,24 @@ fun MissionAgentTaskCoordinationScreen(onBack: () -> Unit) {
         error?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
+    }
+
+    val memoryToDelete = memories.firstOrNull { it.id == pendingDeleteMemoryId }
+    if (memoryToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDeleteMemoryId = null },
+            title = { Text("Remove mission memory?") },
+            text = { Text("This removes the saved handoff context from this device. It does not change the original completed assignment.") },
+            confirmButton = {
+                Button(onClick = {
+                    memoryRepository.remove(memoryToDelete.id, memoryToDelete.missionId)
+                    pendingDeleteMemoryId = null
+                    refreshMemories()
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingDeleteMemoryId = null }) { Text("Cancel") }
+            }
+        )
     }
 }
