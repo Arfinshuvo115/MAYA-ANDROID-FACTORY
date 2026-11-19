@@ -244,7 +244,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
 
     fun openDetectedBuildErrorFile() {
         val tree = projectTreeUri?.let(Uri::parse)
-        val diagnosticPath = detectedErrorFile.replace('\\\\', '/').trim()
+        val diagnosticPath = detectedErrorFile.replace(92.toChar(), '/').trim()
         if (tree == null || diagnosticPath.isBlank()) {
             status = "Choose the project folder and capture a build diagnostic first."
             return
