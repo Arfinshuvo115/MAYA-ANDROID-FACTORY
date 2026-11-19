@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.example.data.ai.ActiveAiProvider
 import com.example.data.ai.MultiAiProviderRouter
 import com.example.data.ai.ProviderCredentialVault
 import kotlinx.coroutines.launch
@@ -48,6 +49,7 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
     var keyDraft by rememberSaveable { mutableStateOf("") }
     var modelDraft by rememberSaveable { mutableStateOf("gpt-4o-mini") }
     var savedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var activeProvider by remember { mutableStateOf<ActiveAiProvider?>(null) }
     var status by remember { mutableStateOf("Credentials are encrypted locally with Android Keystore.") }
     var busy by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -59,6 +61,7 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
         scope.launch {
             savedIds = providers.filter { provider -> runCatching { vault.hasKey(provider.id) }.getOrDefault(false) }
                 .map { it.id }.toSet()
+            activeProvider = runCatching { vault.getActiveProvider() }.getOrNull()
         }
     }
 
@@ -141,6 +144,22 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
                 Button(
                     onClick = {
                         busy = true
+                        scope.launch {
+                            runCatching { vault.setActiveProvider(selected.id, modelDraft) }
+                                .onSuccess {
+                                    activeProvider = ActiveAiProvider(selected.id, modelDraft.trim())
+                                    status = "${selected.displayName} · ${modelDraft.trim()} is now the active AI provider."
+                                }
+                                .onFailure { status = it.localizedMessage ?: "Could not select active provider." }
+                            busy = false
+                        }
+                    },
+                    enabled = !busy && selected.id in savedIds && selected.id in MultiAiProviderRouter.RUNTIME_PROVIDERS && modelDraft.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (activeProvider?.providerId == selected.id && activeProvider?.modelId == modelDraft.trim()) "Active AI provider" else "Use as active AI provider") }
+                Button(
+                    onClick = {
+                        busy = true
                         status = "Testing ${selected.displayName} connection…"
                         scope.launch {
                             router.verifyConnection(selected.id, modelDraft)
@@ -159,6 +178,7 @@ fun MissionAiProvidersScreen(onBack: () -> Unit) {
                 ) { Text("Delete saved key") }
             }
         }
+        Text(activeProvider?.let { "Active route: ${it.providerId} · ${it.modelId}" } ?: "Active route: not selected", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Text(status, style = MaterialTheme.typography.bodySmall)
         Text(
             "The connection test sends a short request to the selected provider and may incur provider charges. No silent fallback or automatic provider switching is enabled; choose a provider explicitly and verify its model ID.",
