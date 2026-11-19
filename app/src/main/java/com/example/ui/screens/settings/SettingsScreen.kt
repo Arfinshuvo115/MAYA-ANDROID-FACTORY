@@ -132,6 +132,31 @@ fun SettingsScreen(
                     }
                 }
 
+                // Admin authentication stays unavailable until the real backend pairing contract is supplied.
+                JarvisHudCard(
+                    telemetryTag = "SECURITY // ADMIN DEVICE PAIRING",
+                    accentColor = MaterialTheme.colorScheme.secondary
+                ) {
+                    Text(
+                        text = "Admin Authentication & Device Pairing",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    JarvisStatusPill(
+                        text = "ADMIN SESSION // NOT PAIRED",
+                        accentColor = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = "Secure storage for a future backend-issued session is ready. Device pairing is not active because this repository contains no verified admin pairing or token-exchange API contract. No admin password or secret is requested or stored here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Required before activation: the backend base URL, documented pairing request/response, session expiry and refresh rules, and server-side revocation behavior.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 // Engine Status Card
                 JarvisHudCard(
                     telemetryTag = if (hasActiveKey) {
