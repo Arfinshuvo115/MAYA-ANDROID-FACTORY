@@ -162,6 +162,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var projectAgentReport by remember { mutableStateOf("") }
     var projectSourceContextSnapshot by remember { mutableStateOf("") }
     var patchRiskReport by remember { mutableStateOf("") }
+    var regressionTestPlan by remember { mutableStateOf("") }
     var patchBaselineSources by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var postApplyComparison by remember { mutableStateOf("") }
     var patchApplyRequestedForCurrentPatch by remember { mutableStateOf(false) }
@@ -651,6 +652,13 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                                 status = "Patch rejected by safety review: " +
                                                     (validation.exceptionOrNull()?.localizedMessage ?: "invalid unified patch")
                                             } else {
+                                                val riskReview = com.example.missioncontrol.MissionPatchRiskAnalyzer.analyze(candidatePatch)
+                                                patchRiskReport = riskReview.toMarkdown()
+                                                regressionTestPlan = com.example.missioncontrol.MissionRegressionTestPlanner
+                                                    .generate(candidatePatch, riskReview).toMarkdown()
+                                                patchBaselineSources = emptyMap()
+                                                postApplyComparison = ""
+                                                patchApplyRequestedForCurrentPatch = false
                                                 val tree = projectTreeUri?.let(Uri::parse)
                                                     ?: throw IOException("Project folder permission expired.")
                                                 val rootId = DocumentsContract.getTreeDocumentId(tree)
@@ -687,6 +695,11 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         changeRequest = it
                         patchText = ""
                         patchFileName = ""
+                        patchRiskReport = ""
+                        regressionTestPlan = ""
+                        patchBaselineSources = emptyMap()
+                        postApplyComparison = ""
+                        patchApplyRequestedForCurrentPatch = false
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Project-wide change request") },
@@ -851,6 +864,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                     patchText = ""
                                     patchFileName = ""
                                     patchRiskReport = ""
+                                    regressionTestPlan = ""
                                     patchBaselineSources = emptyMap()
                                     postApplyComparison = ""
                                     patchApplyRequestedForCurrentPatch = false
@@ -888,6 +902,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                                             changedPath to text
                                                         }.toMap()
                                                     }
+                                                    regressionTestPlan = com.example.missioncontrol.MissionRegressionTestPlanner
+                                                        .generate(candidatePatch, riskReview).toMarkdown()
                                                     patchRiskReport = riskReview.toMarkdown() +
                                                         "\nBaseline source captured for ${beforeSources.size}/${changedPaths.size} changed files."
                                                     patchBaselineSources = beforeSources
@@ -940,6 +956,10 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         if (patchRiskReport.isNotBlank()) {
                             Text("Patch regression-risk review", style = MaterialTheme.typography.titleSmall)
                             Text(patchRiskReport, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (regressionTestPlan.isNotBlank()) {
+                            Text("Automated Regression Test Planner", style = MaterialTheme.typography.titleSmall)
+                            Text(regressionTestPlan, style = MaterialTheme.typography.bodySmall)
                         }
                         val successfulPatchApply = patchApplyRequestedForCurrentPatch && latestBuildOutput?.let {
                             it.commandLabel == "Maya reviewed code patch" && it.succeeded
