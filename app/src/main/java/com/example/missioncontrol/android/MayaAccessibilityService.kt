@@ -1,6 +1,7 @@
 package com.example.missioncontrol.android
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Build
 import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -48,7 +49,7 @@ class MayaAccessibilityService : AccessibilityService() {
             if (node.isEnabled && (node.isClickable || node.isEditable)) {
                 val label = node.text?.toString()?.takeIf { it.isNotBlank() }
                     ?: node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
-                    ?: node.hintText?.toString()?.takeIf { it.isNotBlank() }
+                    ?: getHintTextCompat(node)?.takeIf { it.isNotBlank() }
                     ?: node.viewIdResourceName?.takeIf { it.isNotBlank() }
                 if (label != null) labels.add(label.take(100))
             }
@@ -69,6 +70,9 @@ class MayaAccessibilityService : AccessibilityService() {
             root.recycle()
         }
     }
+
+    private fun getHintTextCompat(node: AccessibilityNodeInfo): String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) node.hintText?.toString() else null
 
     /** Set text in a visible editable node matched by its accessible text or hint. */
     fun setTextInVisibleField(label: String, value: String): Boolean {
@@ -92,7 +96,7 @@ class MayaAccessibilityService : AccessibilityService() {
 
     private fun findEditableByHint(node: AccessibilityNodeInfo, hint: String): AccessibilityNodeInfo? {
         if (node.isVisibleToUser && node.isEnabled && node.isEditable &&
-            (node.hintText?.toString()?.contains(hint, ignoreCase = true) == true ||
+            (getHintTextCompat(node)?.contains(hint, ignoreCase = true) == true ||
              node.viewIdResourceName?.contains(hint, ignoreCase = true) == true)
         ) return node
         for (index in 0 until node.childCount) {
