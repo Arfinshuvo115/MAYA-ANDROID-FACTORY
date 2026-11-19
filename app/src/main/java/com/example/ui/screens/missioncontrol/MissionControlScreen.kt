@@ -23,28 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.data.ai.AiRepository
+import com.example.missioncontrol.MissionAgentRoster
 import com.example.ui.components.JarvisSectionHeader
-
-private data class AgentRole(val name: String, val responsibility: String)
-
-private val missionControlAgents = listOf(
-    AgentRole("Planner Agent", "Plans phases, dependencies and priorities"),
-    AgentRole("Researcher Agent", "Research and fact analysis"),
-    AgentRole("Developer Agent", "Application and software development"),
-    AgentRole("Backend Agent", "Backend, API and database engineering"),
-    AgentRole("UI/UX Designer Agent", "User experience and visual design"),
-    AgentRole("QA Tester Agent", "Quality assurance and testing"),
-    AgentRole("Reviewer Agent", "Independent review and delivery acceptance"),
-    AgentRole("Integration Agent", "API and workflow integrations"),
-    AgentRole("Freelance Job Hunter", "Freelance marketplace opportunity research"),
-    AgentRole("Freelance Market Analyst", "Demand and pricing analysis"),
-    AgentRole("Client Proposal Agent", "Client proposals and bids"),
-    AgentRole("Freelance Work Executor", "Approved freelance project execution"),
-    AgentRole("Client Delivery & QA", "Client delivery quality checks"),
-    AgentRole("Earnings & Invoice Agent", "Earnings and invoice tracking"),
-    AgentRole("Amazon Associates Agent", "Affiliate marketing workflows"),
-    AgentRole("Amazon Seller Services Agent", "Amazon Seller Central workflows")
-)
 
 private val missionControlModules = listOf(
     "Commander & mission queue",
@@ -260,16 +240,16 @@ fun MissionControlScreen(
             }
         }
         item {
-            Text("16 specialist agents", style = MaterialTheme.typography.titleLarge)
+            Text("${MissionAgentRoster.agents.size} specialist agents", style = MaterialTheme.typography.titleLarge)
         }
-        items(missionControlAgents) { agent ->
+        items(MissionAgentRoster.agents) { agent ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(agent.name, style = MaterialTheme.typography.titleSmall)
+                        Text(agent.displayName, style = MaterialTheme.typography.titleSmall)
                         Text(
                             agent.responsibility,
                             style = MaterialTheme.typography.bodySmall,
