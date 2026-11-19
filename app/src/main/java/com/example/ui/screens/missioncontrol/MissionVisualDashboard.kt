@@ -212,6 +212,28 @@ fun MissionVisualDashboard(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             VisualModuleCard(
+                icon = "🧠",
+                title = "AI Providers",
+                detail = "Secure key vault",
+                accent = Color(0xFF80DEEA),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("brain") }
+            )
+            VisualModuleCard(
+                icon = "🎯",
+                title = "Mission Commander",
+                detail = "Issue explicit commands",
+                accent = Color(0xFFFFCC80),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("commander") }
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            VisualModuleCard(
                 icon = "🎬",
                 title = "Media Studio",
                 detail = "Open available media tools",
