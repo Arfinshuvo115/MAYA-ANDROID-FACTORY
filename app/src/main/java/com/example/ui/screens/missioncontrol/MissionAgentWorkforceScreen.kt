@@ -51,6 +51,7 @@ fun MissionAgentWorkforceScreen(onBack: () -> Unit) {
     var running by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf("No agent run started in this screen.") }
     var error by remember { mutableStateOf<String?>(null) }
+    var showTaskCoordination by remember { mutableStateOf(false) }
 
     fun refreshTasks() {
         tasks.clear()
@@ -63,6 +64,11 @@ fun MissionAgentWorkforceScreen(onBack: () -> Unit) {
 
     LaunchedEffect(repository) { refreshTasks() }
     val selectedTask = tasks.firstOrNull { it.id == selectedTaskId }
+
+    if (showTaskCoordination) {
+        MissionAgentTaskCoordinationScreen(onBack = { showTaskCoordination = false })
+        return
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -84,6 +90,11 @@ fun MissionAgentWorkforceScreen(onBack: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        OutlinedButton(
+            onClick = { showTaskCoordination = true },
+            enabled = !running,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Open Task Assignment & Coordination") }
 
         Text("Select a saved mission", style = MaterialTheme.typography.titleMedium)
         OutlinedButton(onClick = ::refreshTasks, enabled = !running, modifier = Modifier.fillMaxWidth()) {
