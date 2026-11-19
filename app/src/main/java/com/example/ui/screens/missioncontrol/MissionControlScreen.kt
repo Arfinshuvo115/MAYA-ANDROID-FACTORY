@@ -51,6 +51,7 @@ private val missionControlPages = listOf(
     MissionPage("missions", "Mission Center", "COMMAND", "Create, inspect, pause and resume missions"),
     MissionPage("agents", "Agent Workforce", "COMMAND", "Specialist agent roster, assignments and status"),
     MissionPage("agentflow", "Workflow Execution", "COMMAND", "Run queued specialist assignments sequentially with saved handoffs"),
+    MissionPage("workflowbuilder", "Visual Workflow Builder", "COMMAND", "Create and save ordered local workflow drafts"),
     MissionPage("office", "3D AI Agent Office", "COMMAND", "Agent workspace and activity visualization"),
     MissionPage("workspace", "Workspace", "BUILD & CREATE", "Project workspace and working files"),
     MissionPage("deliverables", "My Work & Results", "BUILD & CREATE", "Completed work, deliverables and review history"),
@@ -98,6 +99,10 @@ fun MissionControlScreen(
     }
     if (selectedPageId == "agentflow") {
         MissionWorkflowExecutionScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
+    if (selectedPageId == "workflowbuilder") {
+        MissionWorkflowBuilderScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
     if (selectedPageId == "missions") {
