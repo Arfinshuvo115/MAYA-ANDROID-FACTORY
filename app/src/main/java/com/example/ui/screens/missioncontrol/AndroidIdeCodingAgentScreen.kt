@@ -616,20 +616,30 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                         if (!candidatePatch.startsWith("diff --git ")) {
                                             status = candidatePatch.take(500).ifBlank { "Maya did not return a patch." }
                                         } else {
-                                            val tree = projectTreeUri?.let(Uri::parse)
-                                                ?: throw IOException("Project folder permission expired.")
-                                            val rootId = DocumentsContract.getTreeDocumentId(tree)
-                                            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, rootId)
-                                            val newPatchName = "maya-ai-change-" + System.currentTimeMillis() + ".patch"
-                                            val patchUri = DocumentsContract.createDocument(
-                                                context.contentResolver, parent, "text/x-diff", newPatchName
-                                            ) ?: throw IOException("Could not create patch file in the project folder.")
-                                            context.contentResolver.openOutputStream(patchUri, "wt")?.use {
-                                                it.write(candidatePatch.toByteArray(Charsets.UTF_8))
-                                            } ?: throw IOException("Could not write the patch file.")
-                                            patchText = candidatePatch
-                                            patchFileName = newPatchName
-                                            status = "Patch saved as " + newPatchName + ". Review the patch below before applying."
+                                            val validation = com.example.missioncontrol.MissionPatchValidator.validate(candidatePatch)
+                                            if (validation.isFailure) {
+                                                patchText = ""
+                                                patchFileName = ""
+                                                status = "Patch rejected by safety review: " +
+                                                    (validation.exceptionOrNull()?.localizedMessage ?: "invalid unified patch")
+                                            } else {
+                                                val tree = projectTreeUri?.let(Uri::parse)
+                                                    ?: throw IOException("Project folder permission expired.")
+                                                val rootId = DocumentsContract.getTreeDocumentId(tree)
+                                                val parent = DocumentsContract.buildDocumentUriUsingTree(tree, rootId)
+                                                val newPatchName = "maya-ai-change-" + System.currentTimeMillis() + ".patch"
+                                                val patchUri = DocumentsContract.createDocument(
+                                                    context.contentResolver, parent, "text/x-diff", newPatchName
+                                                ) ?: throw IOException("Could not create patch file in the project folder.")
+                                                context.contentResolver.openOutputStream(patchUri, "wt")?.use {
+                                                    it.write(candidatePatch.toByteArray(Charsets.UTF_8))
+                                                } ?: throw IOException("Could not write the patch file.")
+                                                patchText = candidatePatch
+                                                patchFileName = newPatchName
+                                                status = "Safety review passed for " + validation.getOrThrow() +
+                                                    " file(s). Patch saved as " + newPatchName +
+                                                    ". Review it, then explicitly approve apply."
+                                            }
                                         }
                                     }
                                 } catch (error: Exception) {
@@ -645,7 +655,11 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                 ) { Text(if (isGenerating) "Maya is preparing patch…" else "Ask Maya to plan project-wide changes") }
                 OutlinedTextField(
                     value = changeRequest,
-                    onValueChange = { changeRequest = it },
+                    onValueChange = {
+                        changeRequest = it
+                        patchText = ""
+                        patchFileName = ""
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Project-wide change request") },
                     minLines = 2
