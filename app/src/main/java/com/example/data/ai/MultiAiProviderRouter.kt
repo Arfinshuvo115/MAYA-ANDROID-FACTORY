@@ -29,23 +29,14 @@ class MultiAiProviderRouter(
         val safeProvider = providerId.trim().lowercase()
         val safeModel = modelId.trim()
         val safePrompt = prompt.trim()
-        if (safeProvider !in RUNTIME_PROVIDERS) {
-            return@withContext Result.failure(IllegalArgumentException("This provider does not have a text runtime adapter."))
-        }
-        if (safeModel.isBlank()) return@withContext Result.failure(IllegalArgumentException("Enter a model ID."))
+        val config = runCatching { ProviderRuntimePolicy.resolve(safeProvider, safeModel, timeoutMillis) }
+            .getOrElse { return@withContext Result.failure(it) }
         if (safePrompt.isBlank()) return@withContext Result.failure(IllegalArgumentException("Enter a prompt."))
         val apiKey = runCatching { credentialVault.get(safeProvider) }.getOrNull()
             ?: return@withContext Result.failure(IllegalStateException("No saved encrypted key for this provider."))
         var connection: HttpURLConnection? = null
         try {
-            val anthropic = safeProvider == "anthropic"
-            val endpoint = when (safeProvider) {
-                "openai" -> "https://api.openai.com/v1/chat/completions"
-                "openrouter" -> "https://openrouter.ai/api/v1/chat/completions"
-                "groq" -> "https://api.groq.com/openai/v1/chat/completions"
-                "anthropic" -> "https://api.anthropic.com/v1/messages"
-                else -> error("Unsupported provider")
-            }
+            val anthropic = config.usesAnthropicMessagesApi
             val payload = if (anthropic) {
                 JSONObject()
                     .put("model", safeModel)
@@ -57,11 +48,11 @@ class MultiAiProviderRouter(
                     .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", safePrompt)))
                     .put("max_tokens", 1024)
             }
-            connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            connection = (URL(config.endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 doOutput = true
-                connectTimeout = timeoutMillis.coerceIn(5_000, 60_000)
-                readTimeout = timeoutMillis.coerceIn(5_000, 60_000)
+                connectTimeout = config.timeoutMillis
+                readTimeout = config.timeoutMillis
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
                 if (anthropic) {
@@ -112,6 +103,6 @@ class MultiAiProviderRouter(
     companion object {
         const val DEFAULT_TIMEOUT_MILLIS = 45_000
         private const val ANTHROPIC_API_VERSION = "2023-06-01"
-        val RUNTIME_PROVIDERS = setOf("openai", "anthropic", "openrouter", "groq")
+        val RUNTIME_PROVIDERS = ProviderRuntimePolicy.supportedProviderIds
     }
 }
