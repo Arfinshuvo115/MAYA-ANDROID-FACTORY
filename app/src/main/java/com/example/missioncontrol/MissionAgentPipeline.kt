@@ -95,7 +95,7 @@ class MissionAgentPipeline(context: Context) {
         for ((index, agent) in MissionAgentRoster.agents.withIndex()) {
             val contextForAgent = buildString {
                 appendLine("Mission brief:")
-                appendLine(handoff.takeLast(12000))
+                appendLine(handoff.takeLast(if (index == 0) 36000 else 12000))
                 if (agent.id == "researcher") {
                     appendLine()
                     appendLine(liveResearchContext)
