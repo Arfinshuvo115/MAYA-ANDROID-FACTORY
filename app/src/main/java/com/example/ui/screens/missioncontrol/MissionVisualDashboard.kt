@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -69,10 +70,28 @@ fun MissionVisualDashboard(
                             )
                         )
                 )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 18.dp)
+                        .size(112.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x553FE8FF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.img_maya_avatar),
+                        contentDescription = "Maya assistant avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .padding(18.dp),
+                        .padding(start = 18.dp, end = 126.dp, top = 18.dp, bottom = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
@@ -185,6 +204,49 @@ fun MissionVisualDashboard(
                 accent = Color(0xFFA5D6A7),
                 modifier = Modifier.weight(1f),
                 onClick = onOpenSettings
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            VisualModuleCard(
+                icon = "🔎",
+                title = "Research Intel",
+                detail = "Sources and evidence",
+                accent = Color(0xFF80DEEA),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("sources") }
+            )
+            VisualModuleCard(
+                icon = "📋",
+                title = "Mission Queue",
+                detail = "Create and track tasks",
+                accent = Color(0xFFFFCC80),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("missions") }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            VisualModuleCard(
+                icon = "🗃️",
+                title = "Memory Vault",
+                detail = "Saved mission context",
+                accent = Color(0xFFB39DDB),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("memory") }
+            )
+            VisualModuleCard(
+                icon = "📊",
+                title = "Analytics",
+                detail = "Mission performance",
+                accent = Color(0xFFA5D6A7),
+                modifier = Modifier.weight(1f),
+                onClick = { onOpenPage("analytics") }
             )
         }
 
