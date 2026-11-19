@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import com.example.MainActivity
+import com.example.missioncontrol.MissionQueueRepository
 
 /**
  * Small, explicit voice-command router for launching supported apps.
@@ -48,11 +49,42 @@ class MayaAppCommandRouter(context: Context) {
     )
 
     /**
+     * Converts an explicit voice phrase into a device-local mission queue item.
+     * The mission is saved only; it is not executed until the user starts it in Mission Center.
+     */
+    private fun createMissionFromCommand(normalized: String): String? {
+        val english = Regex("^(?:create|add|save)\\s+(?:a\\s+)?mission\\s*[:,-]?\\s*(.+)$", RegexOption.IGNORE_CASE)
+        val bangla = Regex("^(?:মিশন\\s*(?:তৈরি করো|বানাও|যোগ করো|সেভ করো))\\s*[:,-]?\\s*(.+)$")
+        val payload = english.matchEntire(normalized)?.groupValues?.get(1)
+            ?: bangla.matchEntire(normalized)?.groupValues?.get(1)
+            ?: return null
+        val parts = payload.split(Regex("\\s+(?:details?|বিস্তারিত)\\s*[:,-]?\\s*", RegexOption.IGNORE_CASE), limit = 2)
+        val title = parts.first().trim().take(160)
+        if (title.isBlank()) return "Please say a mission title after 'create mission'."
+        val details = parts.getOrNull(1)?.trim()?.take(4000).orEmpty()
+        return try {
+            val saved = MissionQueueRepository(appContext).add(title, details)
+            if (normalized.any { it in '\\u0980'..'\\u09FF' }) {
+                "মিশন '${saved.title}' Mission Queue-তে সংরক্ষণ করেছি। চালু করতে Mission Center খুলে Run 16 Agents চাপুন।"
+            } else {
+                "Saved mission '${saved.title}' to the Mission Queue. Open Mission Center and tap Run 16 Agents when you are ready."
+            }
+        } catch (failure: Exception) {
+            if (normalized.any { it in '\\u0980'..'\\u09FF' }) {
+                "মিশন সংরক্ষণ করা যায়নি: ${failure.localizedMessage ?: "অজানা সমস্যা"}"
+            } else {
+                "Could not save the mission: ${failure.localizedMessage ?: "unknown error"}"
+            }
+        }
+    }
+
+    /**
      * Returns null when the phrase is not an app-launch command.
      * Otherwise returns a user-facing result, including not-installed failures.
      */
     fun execute(command: String): String? {
         val normalized = command.trim().replace(Regex("\\s+"), " ")
+        createMissionFromCommand(normalized)?.let { return it }
         val openInstalledIde = listOf(
             Regex("^(open|launch|start)\\s+(android studio|android ide|androidide|codeassist|aide)$", RegexOption.IGNORE_CASE),
             Regex("^(অ্যান্ড্রয়েড স্টুডিও|অ্যান্ড্রয়েড আইডিই|কোডঅ্যাসিস্ট)\\s*(খোলো|চালু করো|ওপেন করো)$", RegexOption.IGNORE_CASE)
