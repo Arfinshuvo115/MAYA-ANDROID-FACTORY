@@ -144,7 +144,7 @@ class VoiceViewModel(
     }
 
 
-    private fun persistVoiceThread(
+    private suspend fun persistVoiceThread(
         threadId: String,
         existing: ConversationThread?,
         messages: List<ChatMessage>
@@ -157,7 +157,7 @@ class VoiceViewModel(
             updatedAtMillis = System.currentTimeMillis(),
             isPinned = true
         )
-        viewModelScope.launch { conversationStore.upsertThread(thread) }
+        conversationStore.upsertThread(thread)
     }
 
     private fun isVideoProductionRequest(text: String): Boolean {
@@ -203,6 +203,7 @@ class VoiceViewModel(
                 val containsBengali = spokenQuery.any { it in '\u0980'..'\u09FF' }
                 val lang = if (containsBengali) AppLanguage.BANGLA else AppLanguage.ENGLISH
                 val voiceThreadId = VOICE_MEMORY_THREAD_ID
+                conversationStore.awaitReady()
                 val savedThread = conversationStore.threads.value.firstOrNull { it.id == voiceThreadId }
                 val historySnapshot = savedThread?.messages.orEmpty().takeLast(12)
                 val userMessage = ChatMessage(
@@ -217,6 +218,15 @@ class VoiceViewModel(
                 persistVoiceThread(voiceThreadId, savedThread, updatedHistory)
                 val localCommandReply = appCommandRouter.execute(spokenQuery)
                 if (localCommandReply != null) {
+                    val commandReplyMessage = ChatMessage(
+                        id = UUID.randomUUID().toString(),
+                        role = MessageRole.ASSISTANT,
+                        content = localCommandReply,
+                        timestampMillis = System.currentTimeMillis(),
+                        persona = MayaPersona.ASSISTANT,
+                        language = lang
+                    )
+                    persistVoiceThread(voiceThreadId, savedThread, updatedHistory + commandReplyMessage)
                     _voiceReplyText.value = localCommandReply
                     _isReplying.value = false
                     speakReply(localCommandReply, lang)
@@ -234,7 +244,7 @@ class VoiceViewModel(
                         "If duration or platform is unspecified, state reasonable assumptions.",
                         "Never claim a video file has been rendered, exported, uploaded, or published.",
                         "Clearly state that this is the script/production plan only; actual rendering requires a connected video-generation service."
-                    ).joinToString("\\n")
+                    ).joinToString("\n")
                 } else spokenQuery
                 aiRepository.streamChatReply(
                     prompt = effectivePrompt,
