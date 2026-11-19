@@ -41,7 +41,13 @@ class MissionAgentPipeline(context: Context) {
     private val geminiClient = GeminiRestClient(context.applicationContext)
     private val tavilyClient = TavilyResearchClient()
 
-    suspend fun run(task: MissionTask, projectSourceContext: String? = null, buildDiagnostics: String? = null): AgentPipelineResult {
+    suspend fun run(
+        task: MissionTask,
+        projectSourceContext: String? = null,
+        buildDiagnostics: String? = null,
+        onStageStarted: (agent: MissionAgentDefinition, index: Int, total: Int) -> Unit = { _, _, _ -> },
+        onStageCompleted: (agent: MissionAgentDefinition, index: Int, total: Int, output: String) -> Unit = { _, _, _, _ -> }
+    ): AgentPipelineResult {
         val preferences = preferencesRepository.preferences.first()
         val apiKey = preferences.geminiApiKey.trim()
         require(apiKey.isNotEmpty()) {
@@ -93,6 +99,7 @@ class MissionAgentPipeline(context: Context) {
             }
         }.take(36000)
         for ((index, agent) in MissionAgentRoster.agents.withIndex()) {
+            onStageStarted(agent, index + 1, MissionAgentRoster.agents.size)
             val contextForAgent = buildString {
                 appendLine("Mission brief:")
                 appendLine(handoff.takeLast(if (index == 0) 36000 else 12000))
@@ -119,6 +126,7 @@ class MissionAgentPipeline(context: Context) {
             require(response.isNotBlank()) { "${agent.displayName} returned an empty result at pass ${index + 1}/16." }
             val boundedOutput = response.take(6000)
             results += AgentStageResult(agent.displayName, boundedOutput)
+            onStageCompleted(agent, index + 1, MissionAgentRoster.agents.size, boundedOutput)
             handoff += "\n\n--- ${agent.displayName} handoff ---\n$boundedOutput"
             handoff = handoff.takeLast(16000)
         }
