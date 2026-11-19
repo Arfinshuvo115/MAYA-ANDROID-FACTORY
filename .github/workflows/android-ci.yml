@@ -1,12 +1,10 @@
 name: Android Build and Verification
 
 on:
-  push:
-    branches:
-      - feature/mission-control-android-integration
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
