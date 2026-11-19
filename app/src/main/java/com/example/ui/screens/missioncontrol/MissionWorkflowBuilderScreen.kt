@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,7 +54,7 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
     LaunchedEffect(repository) { refresh() }
     val selected = workflows.firstOrNull { it.id == selectedId }
 
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onBack) { Text("Back") }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -81,11 +81,9 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
 
         if (workflows.isNotEmpty()) {
             Text("Saved workflows (${workflows.size})", style = MaterialTheme.typography.titleMedium)
-            LazyColumn(Modifier.weight(0.35f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(workflows, key = { it.id }) { workflow ->
-                    OutlinedButton(onClick = { selectedId = workflow.id; error = null }, modifier = Modifier.fillMaxWidth()) {
-                        Text((if (workflow.id == selectedId) "✓ " else "") + workflow.name + " · " + workflow.steps.size + " steps")
-                    }
+            workflows.forEach { workflow ->
+                OutlinedButton(onClick = { selectedId = workflow.id; error = null }, modifier = Modifier.fillMaxWidth()) {
+                    Text((if (workflow.id == selectedId) "✓ " else "") + workflow.name + " · " + workflow.steps.size + " steps")
                 }
             }
         }
