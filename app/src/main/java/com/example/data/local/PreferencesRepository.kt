@@ -45,8 +45,11 @@ class PreferencesRepository(context: Context) {
                 GeminiVoicePreset.entries.firstOrNull { it.name == name }
             } ?: GeminiVoicePreset.SULAFAT,
             geminiApiKey = prefs[KEY_GEMINI_API_KEY].orEmpty(),
-            geminiModelId = prefs[KEY_GEMINI_MODEL]?.takeIf { it.isNotBlank() }
-                ?: UserPreferences.DEFAULT_GEMINI_MODEL
+            geminiModelId = when (prefs[KEY_GEMINI_MODEL]?.takeIf { it.isNotBlank() }) {
+                "gemini-2.5-pro", "gemini-2.5-flash" -> UserPreferences.DEFAULT_GEMINI_MODEL
+                null -> UserPreferences.DEFAULT_GEMINI_MODEL
+                else -> prefs[KEY_GEMINI_MODEL]!!
+            }
         )
     }
 
