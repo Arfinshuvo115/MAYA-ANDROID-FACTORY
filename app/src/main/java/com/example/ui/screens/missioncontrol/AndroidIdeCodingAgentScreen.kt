@@ -837,6 +837,8 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                 } else {
                                     isGenerating = true
                                     projectAgentError = ""
+                                    patchText = ""
+                                    patchFileName = ""
                                     val reportSnapshot = projectAgentReport.takeLast(20000)
                                     val sourceSnapshot = projectSourceContextSnapshot.take(24000)
                                     coroutineScope.launch {
@@ -887,6 +889,20 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(if (isGenerating) "Preparing safety-checked patch…" else "Generate Patch from 16-Agent Findings")
+                        }
+                        val latestPatchApplyFailed = latestBuildOutput?.let {
+                            it.commandLabel == "Maya reviewed code patch" && !it.succeeded
+                        } == true
+                        if (latestPatchApplyFailed) {
+                            Text(
+                                "Patch apply did not succeed. Review the actual Termux callback below before retrying.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                (latestBuildOutput?.errorMessage.orEmpty() + "\\n" + latestBuildOutput?.stderr.orEmpty()).takeLast(3000),
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                         val successfulPatchApply = latestBuildOutput?.let {
                             it.commandLabel == "Maya reviewed code patch" && it.succeeded
