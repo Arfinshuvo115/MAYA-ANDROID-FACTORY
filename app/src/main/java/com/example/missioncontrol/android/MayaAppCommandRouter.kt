@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import com.example.MainActivity
 import com.example.missioncontrol.MissionQueueRepository
+import com.example.missioncontrol.MissionAgentRoster
+import com.example.missioncontrol.MissionAgentTaskRepository
 
 /**
  * Small, explicit voice-command router for launching supported apps.
@@ -78,12 +80,82 @@ class MayaAppCommandRouter(context: Context) {
         }
     }
 
+
+    /**
+     * Saves an explicit voice-requested specialist assignment to the local queue.
+     * It never invokes Gemini or starts the assigned task.
+     */
+    private fun assignAgentTaskFromCommand(normalized: String): String? {
+        val english = Regex(
+            "^(?:assign|give)\\s+(.+?)\\s+to\\s+mission\\s+(.+?)\\s*[:,-]\\s*(.+)$",
+            RegexOption.IGNORE_CASE
+        )
+        val bangla = Regex(
+            "^এজেন্ট\\s+(.+?)\\s+কে\\s+মিশন\\s+(.+?)\\s+এ\\s+কাজ\\s+দাও\\s*[:,-]?\\s*(.+)$"
+        )
+        val match = english.matchEntire(normalized) ?: bangla.matchEntire(normalized) ?: return null
+        val agentName = match.groupValues[1].trim()
+        val missionTitle = match.groupValues[2].trim().trim('"', '\\'')
+        val taskPayload = match.groupValues[3].trim()
+        if (agentName.isBlank() || missionTitle.isBlank() || taskPayload.isBlank()) {
+            return "Please include an agent, an exact mission title, and the task."
+        }
+
+        val agent = MissionAgentRoster.agents.firstOrNull {
+            it.id.equals(agentName, ignoreCase = true) ||
+                it.displayName.equals(agentName, ignoreCase = true)
+        } ?: return "I couldn't match '$agentName' to one of the 16 specialist agents. Say the agent's exact name."
+
+        val matchingMissions = MissionQueueRepository(appContext).getAll().filter {
+            it.title.equals(missionTitle, ignoreCase = true)
+        }
+        if (matchingMissions.isEmpty()) {
+            return if (normalized.any { it.code in 0x0980..0x09FF }) {
+                "এই নামে কোনো Mission পাওয়া যায়নি। আগে Mission Center-এ '$missionTitle' তৈরি করুন।"
+            } else {
+                "No mission named '$missionTitle' was found. Create it in Mission Center first."
+            }
+        }
+        if (matchingMissions.size > 1) {
+            return "More than one mission has that exact title. Rename one mission in Mission Center, then try again."
+        }
+
+        val parts = taskPayload.split(
+            Regex("\\s+(?:details?|বিস্তারিত)\\s*[:,-]?\\s*", RegexOption.IGNORE_CASE),
+            limit = 2
+        )
+        val taskTitle = parts.first().trim().take(180)
+        val instructions = parts.getOrNull(1)?.trim()?.take(5000).orEmpty()
+        if (taskTitle.isBlank()) return "Please say the task after the mission title."
+
+        return try {
+            MissionAgentTaskRepository(appContext).create(
+                missionId = matchingMissions.single().id,
+                title = taskTitle,
+                instructions = instructions,
+                agentId = agent.id
+            )
+            if (normalized.any { it.code in 0x0980..0x09FF }) {
+                "বস, '$taskTitle' কাজটি \${agent.displayName}-কে বরাদ্দ করে Queue-তে রেখেছি। চালু করিনি। Task Coordination খুলে Run চাপলে কাজ শুরু হবে।"
+            } else {
+                "Assigned '$taskTitle' to \${agent.displayName} and saved it in the queue. It has not been started. Open Task Coordination and press Run when ready."
+            }
+        } catch (failure: Exception) {
+            if (normalized.any { it.code in 0x0980..0x09FF }) {
+                "Agent assignment সংরক্ষণ করা যায়নি: \${failure.localizedMessage ?: "অজানা সমস্যা"}"
+            } else {
+                "Could not save the agent assignment: \${failure.localizedMessage ?: "unknown error"}"
+            }
+        }
+    }
+
     /**
      * Returns null when the phrase is not an app-launch command.
      * Otherwise returns a user-facing result, including not-installed failures.
      */
     fun execute(command: String): String? {
         val normalized = command.trim().replace(Regex("\\s+"), " ")
+        assignAgentTaskFromCommand(normalized)?.let { return it }
         createMissionFromCommand(normalized)?.let { return it }
         val openInstalledIde = listOf(
             Regex("^(open|launch|start)\\s+(android studio|android ide|androidide|codeassist|aide)$", RegexOption.IGNORE_CASE),
