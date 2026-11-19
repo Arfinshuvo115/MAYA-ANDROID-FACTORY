@@ -66,13 +66,13 @@ class MayaAppCommandRouter(context: Context) {
         val details = parts.getOrNull(1)?.trim()?.take(4000).orEmpty()
         return try {
             val saved = MissionQueueRepository(appContext).add(title, details)
-            if (normalized.any { it in '\\u0980'..'\\u09FF' }) {
+            if (normalized.any { it.code in 0x0980..0x09FF }) {
                 "মিশন '${saved.title}' Mission Queue-তে সংরক্ষণ করেছি। চালু করতে Mission Center খুলে Run 16 Agents চাপুন।"
             } else {
                 "Saved mission '${saved.title}' to the Mission Queue. Open Mission Center and tap Run 16 Agents when you are ready."
             }
         } catch (failure: Exception) {
-            if (normalized.any { it in '\\u0980'..'\\u09FF' }) {
+            if (normalized.any { it.code in 0x0980..0x09FF }) {
                 "মিশন সংরক্ষণ করা যায়নি: ${failure.localizedMessage ?: "অজানা সমস্যা"}"
             } else {
                 "Could not save the mission: ${failure.localizedMessage ?: "unknown error"}"
