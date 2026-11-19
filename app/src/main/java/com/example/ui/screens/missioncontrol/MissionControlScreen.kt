@@ -118,6 +118,10 @@ fun MissionControlScreen(
         WalletLedgerScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "automation") {
+        VisualAutomationScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
@@ -169,7 +173,7 @@ fun MissionControlScreen(
                             .clickable {
                                 when (page.id) {
                                     "maya", "sources" -> onOpenChat()
-                                    "voice", "socialcontrol", "automation" -> onOpenVoice()
+                                    "voice", "socialcontrol" -> onOpenVoice()
                                     "studio", "production" -> onOpenTools()
                                     "deliverables", "memory" -> onOpenHistory()
                                     "settings", "brain", "security" -> onOpenSettings()
