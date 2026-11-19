@@ -604,6 +604,13 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         else if (isGenerating) status = "Maya is already preparing a code change."
                         else {
                             isGenerating = true
+                            patchText = ""
+                            patchFileName = ""
+                            patchRiskReport = ""
+                            regressionTestPlan = ""
+                            patchBaselineSources = emptyMap()
+                            postApplyComparison = ""
+                            patchApplyRequestedForCurrentPatch = false
                             status = "Maya is reading project source files and planning a patch."
                             coroutineScope.launch {
                                 try {
