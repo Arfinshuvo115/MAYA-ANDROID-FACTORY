@@ -114,6 +114,10 @@ fun MissionControlScreen(
         MissionQueueScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "wallet") {
+        WalletLedgerScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
