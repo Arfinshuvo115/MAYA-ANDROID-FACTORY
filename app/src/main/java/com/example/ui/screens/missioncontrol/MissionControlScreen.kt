@@ -66,10 +66,11 @@ private data class MissionPage(val id: String, val title: String, val group: Str
 private val missionControlPages = listOf(
     MissionPage("dashboard", "Dashboard", "COMMAND", "Overview of system status, mission activity and agent workload"),
     MissionPage("features", "Feature Hub", "COMMAND", "Directory of all available Mission Control capabilities"),
-    MissionPage("maya", "Maya Command", "COMMAND", "Natural-language command entry and command routing"),
+    MissionPage("maya", "Maya Chat", "COMMAND", "Open the existing Maya chat assistant"),
+    MissionPage("commander", "Mission Commander", "COMMAND", "Execute supported mission creation and specialist assignment commands"),
     MissionPage("missions", "Mission Center", "COMMAND", "Create, inspect, pause and resume missions"),
     MissionPage("agents", "Agent Workforce", "COMMAND", "Specialist agent roster, assignments and status"),
-    MissionPage("agentflow", "8-Agent Pipeline", "COMMAND", "Planner, research, development, QA and review handoffs"),
+    MissionPage("agentflow", "Workflow Execution", "COMMAND", "Run queued specialist assignments sequentially with saved handoffs"),
     MissionPage("office", "3D AI Agent Office", "COMMAND", "Agent workspace and activity visualization"),
     MissionPage("workspace", "Workspace", "BUILD & CREATE", "Project workspace and working files"),
     MissionPage("deliverables", "My Work & Results", "BUILD & CREATE", "Completed work, deliverables and review history"),
@@ -108,6 +109,14 @@ fun MissionControlScreen(
     val selectedPage = missionControlPages.first { it.id == selectedPageId }
     if (selectedPageId == "appfactory") {
         AndroidIdeCodingAgentScreen(aiRepository = aiRepository, onBack = { selectedPageId = "dashboard" })
+        return
+    }
+    if (selectedPageId == "commander") {
+        MissionCommanderScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
+    if (selectedPageId == "agentflow") {
+        MissionWorkflowExecutionScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
     if (selectedPageId == "missions") {
@@ -185,7 +194,6 @@ fun MissionControlScreen(
                                     "studio", "production" -> onOpenTools()
                                     "deliverables", "memory" -> onOpenHistory()
                                     "settings", "brain", "security" -> onOpenSettings()
-                                    "agentflow" -> selectedPageId = "missions"
                                     "appfactory", "termux", "workspace", "systemhealth" -> selectedPageId = "appfactory"
                                     else -> selectedPageId = page.id
                                 }
