@@ -24,14 +24,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private val Context.mayaDataStore: DataStore<Preferences> by preferencesDataStore(name = "maya_prefs")
+private val apiCredentialMutex = Mutex()
 
 class PreferencesRepository(context: Context) {
 
     private val appContext = context.applicationContext
     private val dataStore = appContext.mayaDataStore
     private val secureCredentialStore = SecureCredentialStore(appContext)
-    private val credentialMutex = Mutex()
-
     val preferences: Flow<UserPreferences> = dataStore.data.map { prefs ->
         UserPreferences(
             defaultPersona = prefs[KEY_PERSONA]?.let { name ->
@@ -66,7 +65,7 @@ class PreferencesRepository(context: Context) {
      * plaintext value remains available for a later retry.
      */
     suspend fun migrateLegacyApiKeys() = withContext(Dispatchers.IO) {
-        credentialMutex.withLock {
+        apiCredentialMutex.withLock {
             val legacy = dataStore.data.first()
             val legacyGemini = legacy[KEY_GEMINI_API_KEY].orEmpty().trim()
             val legacyTavily = legacy[KEY_TAVILY_API_KEY].orEmpty().trim()
@@ -117,7 +116,7 @@ class PreferencesRepository(context: Context) {
 
     suspend fun setGeminiApiKey(apiKey: String) = withContext(Dispatchers.IO) {
         val cleaned = apiKey.trim()
-        credentialMutex.withLock {
+        apiCredentialMutex.withLock {
             if (cleaned.isEmpty()) secureCredentialStore.remove(GEMINI_CREDENTIAL_ID)
             else secureCredentialStore.put(GEMINI_CREDENTIAL_ID, cleaned)
             dataStore.edit { it.remove(KEY_GEMINI_API_KEY) }
@@ -128,7 +127,7 @@ class PreferencesRepository(context: Context) {
 
     suspend fun setTavilyApiKey(apiKey: String) = withContext(Dispatchers.IO) {
         val cleaned = apiKey.trim()
-        credentialMutex.withLock {
+        apiCredentialMutex.withLock {
             if (cleaned.isEmpty()) secureCredentialStore.remove(TAVILY_CREDENTIAL_ID)
             else secureCredentialStore.put(TAVILY_CREDENTIAL_ID, cleaned)
             dataStore.edit { it.remove(KEY_TAVILY_API_KEY) }
