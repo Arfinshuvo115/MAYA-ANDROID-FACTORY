@@ -164,6 +164,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
     var patchRiskReport by remember { mutableStateOf("") }
     var patchBaselineSources by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var postApplyComparison by remember { mutableStateOf("") }
+    var patchApplyRequestedForCurrentPatch by remember { mutableStateOf(false) }
     var projectAgentError by rememberSaveable { mutableStateOf("") }
 
     val chooseFolder = rememberLauncherForActivityResult(
@@ -712,8 +713,15 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                     context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
                                 }
                                 else -> TermuxBuildBridge.requestApplyReviewedPatch(context, patchBuildRequest, patchFileName)
-                                    .onSuccess { status = "Patch check and apply command sent. Wait for the Termux result before generating another patch." }
-                                    .onFailure { status = "Patch apply request failed: " + (it.localizedMessage ?: "unknown error") }
+                                    .onSuccess {
+                                        patchApplyRequestedForCurrentPatch = true
+                                        postApplyComparison = ""
+                                        status = "Patch check and apply command sent. Wait for the Termux result before generating another patch."
+                                    }
+                                    .onFailure {
+                                        patchApplyRequestedForCurrentPatch = false
+                                        status = "Patch apply request failed: " + (it.localizedMessage ?: "unknown error")
+                                    }
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -842,6 +850,10 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                                     projectAgentError = ""
                                     patchText = ""
                                     patchFileName = ""
+                                    patchRiskReport = ""
+                                    patchBaselineSources = emptyMap()
+                                    postApplyComparison = ""
+                                    patchApplyRequestedForCurrentPatch = false
                                     val reportSnapshot = projectAgentReport.takeLast(20000)
                                     val sourceSnapshot = projectSourceContextSnapshot.take(24000)
                                     val indexedProjectFiles = projectFiles.toList()
@@ -911,7 +923,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                         ) {
                             Text(if (isGenerating) "Preparing safety-checked patch…" else "Generate Patch from 16-Agent Findings")
                         }
-                        val latestPatchApplyFailed = latestBuildOutput?.let {
+                        val latestPatchApplyFailed = patchApplyRequestedForCurrentPatch && latestBuildOutput?.let {
                             it.commandLabel == "Maya reviewed code patch" && !it.succeeded
                         } == true
                         if (latestPatchApplyFailed) {
@@ -929,7 +941,7 @@ fun AndroidIdeCodingAgentScreen(aiRepository: AiRepository, onBack: () -> Unit, 
                             Text("Patch regression-risk review", style = MaterialTheme.typography.titleSmall)
                             Text(patchRiskReport, style = MaterialTheme.typography.bodySmall)
                         }
-                        val successfulPatchApply = latestBuildOutput?.let {
+                        val successfulPatchApply = patchApplyRequestedForCurrentPatch && latestBuildOutput?.let {
                             it.commandLabel == "Maya reviewed code patch" && it.succeeded
                         } == true
                         if (successfulPatchApply) {
