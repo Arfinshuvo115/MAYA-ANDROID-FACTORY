@@ -27,6 +27,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.data.ai.ActiveAiProvider
+import com.example.data.ai.MultiAiProviderRouter
+import com.example.data.ai.ProviderCredentialVault
+import com.example.missioncontrol.MissionWorkflowExecutionEngine
 import com.example.missioncontrol.MissionWorkflowDefinition
 import com.example.missioncontrol.MissionWorkflowDefinitionRepository
 
@@ -35,6 +39,10 @@ import com.example.missioncontrol.MissionWorkflowDefinitionRepository
 fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val repository = remember(context) { MissionWorkflowDefinitionRepository(context) }
+    val vault = remember(context) { ProviderCredentialVault(context) }
+    val aiRouter = remember(vault) { MultiAiProviderRouter(vault) }
+    val executionEngine = remember(aiRouter) { MissionWorkflowExecutionEngine(aiRouter) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val workflows = remember { mutableStateListOf<MissionWorkflowDefinition>() }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var workflowName by remember { mutableStateOf("") }
@@ -44,6 +52,9 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
     var typeMenuExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("Create a workflow draft, then add ordered steps.") }
+    var activeProvider by remember { mutableStateOf<ActiveAiProvider?>(null) }
+    var running by remember { mutableStateOf(false) }
+    var executionReport by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         workflows.clear()
@@ -52,6 +63,7 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(repository) { refresh() }
+    LaunchedEffect(vault) { activeProvider = runCatching { vault.getActiveProvider() }.getOrNull() }
     val selected = workflows.firstOrNull { it.id == selectedId }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -63,7 +75,7 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
             }
         }
         Text(
-            "Build and save a reusable workflow outline. Drafts are stored on this device. They do not yet execute AI, browser, notification or Android actions; each step type is a definition until its executor is connected.",
+            "Drafts are stored locally. AI Task steps can run sequentially through your explicitly selected provider. Trigger, Condition, Approval and Notification remain draft-only and block execution until their executors are implemented.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         OutlinedTextField(value = workflowName, onValueChange = { workflowName = it; error = null }, modifier = Modifier.fillMaxWidth(), label = { Text("New workflow name") }, singleLine = true)
@@ -120,6 +132,64 @@ fun MissionWorkflowBuilderScreen(onBack: () -> Unit) {
                         },
                         enabled = stepTitle.isNotBlank() && selected.steps.size < 40, modifier = Modifier.fillMaxWidth()
                     ) { Text("Add step") }
+                    Text(
+                        activeProvider?.let { "Active AI: ${it.providerId} · ${it.modelId}" } ?: "No active AI provider selected. Set one in AI Providers.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Button(
+                        onClick = {
+                            val route = activeProvider
+                            if (route == null) {
+                                error = "Select an active provider in AI Providers first."
+                            } else {
+                                running = true
+                                error = null
+                                executionReport = null
+                                message = "Starting workflow…"
+                                scope.launch {
+                                    runCatching {
+                                        executionEngine.execute(
+                                            selected,
+                                            route,
+                                            onStepStarted = { step, index, total ->
+                                                message = "Running step $index/$total: ${step.title}"
+                                            },
+                                            onStepCompleted = { step, index, total, _ ->
+                                                message = "Completed step $index/$total: ${step.title}"
+                                            }
+                                        )
+                                    }.onSuccess { result ->
+                                        executionReport = result.steps.joinToString("\n\n") { step ->
+                                            "${step.title}\nProvider: ${step.providerId} · ${step.modelId}\n${step.output}"
+                                        }
+                                        message = "Workflow completed · ${result.steps.size} AI steps."
+                                    }.onFailure { failure ->
+                                        error = failure.localizedMessage ?: "Workflow execution failed."
+                                        message = "Workflow stopped. Review the error before retrying."
+                                    }
+                                    running = false
+                                }
+                            }
+                        },
+                        enabled = !running && selected.steps.isNotEmpty() &&
+                            selected.steps.all { it.type == MissionWorkflowDefinitionRepository.TYPE_AI_TASK } &&
+                            activeProvider != null,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (running) "Running workflow…" else "Run AI workflow") }
+                    if (selected.steps.any { it.type != MissionWorkflowDefinitionRepository.TYPE_AI_TASK }) {
+                        Text(
+                            "This workflow includes non-AI steps. They are saved but not executable yet; remove them to run the AI Task steps.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    executionReport?.let { report ->
+                        Text("Execution results", style = MaterialTheme.typography.titleSmall)
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                            Text(report, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     if (selected.steps.isEmpty()) Text("No steps yet. Add a trigger, AI task, condition, approval or notification step.")
                     selected.steps.forEachIndexed { index, step ->
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
