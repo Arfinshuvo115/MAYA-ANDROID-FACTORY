@@ -79,6 +79,7 @@ private val missionControlPages = listOf(
     MissionPage("webfactory", "Website Factory", "BUILD & CREATE", "Website project generation and management"),
     MissionPage("studio", "Media Studio", "BUILD & CREATE", "Image, audio and video creation tools"),
     MissionPage("production", "Production Studio", "BUILD & CREATE", "Media production pipelines and generated assets"),
+    MissionPage("vision", "Maya Vision", "AUTOMATION & INTELLIGENCE", "Choose photos for Gemini image understanding and visual analysis"),
     MissionPage("automation", "Visual Automation", "AUTOMATION & INTELLIGENCE", "Visual workflows and browser automation"),
     MissionPage("voice", "Voice Center", "AUTOMATION & INTELLIGENCE", "Speech input, multilingual responses and voice output"),
     MissionPage("socialcontrol", "Voice & App Control", "AUTOMATION & INTELLIGENCE", "Voice-triggered Android app launch and approved device actions"),
@@ -129,6 +130,14 @@ fun MissionControlScreen(
     }
     if (selectedPageId == "wallet") {
         WalletLedgerScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
+    if (selectedPageId == "webfactory") {
+        WebsiteFactoryScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
+    if (selectedPageId == "vision") {
+        MayaVisionScreen(aiRepository = aiRepository, onBack = { selectedPageId = "dashboard" })
         return
     }
     if (selectedPageId == "automation") {
