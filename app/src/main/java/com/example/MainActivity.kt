@@ -28,16 +28,12 @@ import com.example.ui.screens.settings.SettingsViewModel
 import com.example.ui.screens.tools.ToolsViewModel
 import com.example.ui.screens.voice.VoiceViewModel
 import com.example.ui.theme.MayaTheme
-import com.example.util.SpeechHelper
-import com.example.util.SpeechRecognizerHelper
+import com.example.util.SpeechServicesViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
 
     private val openAndroidIdeRequestId = MutableStateFlow(0)
-
-    private lateinit var speechHelper: SpeechHelper
-    private lateinit var speechRecognizerHelper: SpeechRecognizerHelper
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,8 +53,12 @@ class MainActivity : ComponentActivity() {
             localRepository = LocalMayaAiRepository(),
             geminiRestClient = geminiRestClient
         )
-        speechHelper = SpeechHelper(applicationContext)
-        speechRecognizerHelper = SpeechRecognizerHelper(applicationContext)
+        val speechServicesViewModel = ViewModelProvider(
+            this,
+            SpeechServicesViewModel.Factory(applicationContext)
+        )[SpeechServicesViewModel::class.java]
+        val speechHelper = speechServicesViewModel.speechHelper
+        val speechRecognizerHelper = speechServicesViewModel.speechRecognizerHelper
 
         val chatViewModel = ViewModelProvider(
             this,
@@ -151,13 +151,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (::speechHelper.isInitialized) {
-            speechHelper.shutdown()
-        }
-        if (::speechRecognizerHelper.isInitialized) {
-            speechRecognizerHelper.destroy()
-        }
-    }
 }
