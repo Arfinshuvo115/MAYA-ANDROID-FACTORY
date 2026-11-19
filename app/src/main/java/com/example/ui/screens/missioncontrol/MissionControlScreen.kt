@@ -114,6 +114,10 @@ fun MissionControlScreen(
         MissionQueueScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "agents") {
+        MissionAgentWorkforceScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     if (selectedPageId == "wallet") {
         WalletLedgerScreen(onBack = { selectedPageId = "dashboard" })
         return
