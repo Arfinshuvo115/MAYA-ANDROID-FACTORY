@@ -36,6 +36,7 @@ data class AgentPipelineResult(
 class MissionAgentPipeline(context: Context) {
     private val preferencesRepository = PreferencesRepository(context.applicationContext)
     private val geminiClient = GeminiRestClient(context.applicationContext)
+    private val tavilyClient = TavilyResearchClient()
 
     suspend fun run(task: MissionTask): AgentPipelineResult {
         val preferences = preferencesRepository.preferences.first()
@@ -51,7 +52,7 @@ class MissionAgentPipeline(context: Context) {
             ),
             Stage(
                 name = "Researcher Agent",
-                instruction = "You are the Researcher Agent. Analyze the mission and the Planner output. Separate known facts from assumptions, identify information that requires external verification, and give evidence requirements. Do not invent sources or claim live browsing."
+                instruction = "You are the Researcher Agent. Analyze the mission and the Planner output. Use the attached live Tavily search results when provided, cite their URLs inline, and distinguish source claims from verified facts. If no live search results are attached, explicitly say external research was not performed. Separate facts from assumptions; never invent sources."
             ),
             Stage(
                 name = "Developer Agent",
@@ -65,12 +66,38 @@ class MissionAgentPipeline(context: Context) {
 
         val results = mutableListOf<AgentStageResult>()
         var previousContext = "Mission title: ${task.title}\nMission details: ${task.details.ifBlank { "No additional details supplied." }}"
+        val liveResearchContext = if (preferences.tavilyApiKey.isNotBlank()) {
+            val researchQuery = listOf(task.title, task.details).filter { it.isNotBlank() }.joinToString(" ")
+                .take(1000)
+            tavilyClient.search(preferences.tavilyApiKey, researchQuery).fold(
+                onSuccess = { found ->
+                    if (found.isEmpty()) "LIVE WEB SEARCH: Tavily returned no usable sources."
+                    else buildString {
+                        appendLine("LIVE WEB SEARCH RESULTS (Tavily; snippets are not independently verified):")
+                        found.forEachIndexed { index, item ->
+                            appendLine("${index + 1}. ${item.title}")
+                            appendLine("URL: ${item.url}")
+                            appendLine("Snippet: ${item.content.take(1800)}")
+                        }
+                    }
+                },
+                onFailure = { failure ->
+                    "LIVE WEB SEARCH FAILED: ${failure.localizedMessage ?: "Unknown Tavily error"}. Do not claim browsing succeeded."
+                }
+            )
+        } else {
+            "LIVE WEB SEARCH NOT CONFIGURED: no Tavily API key is saved. Do not claim external browsing."
+        }
+
         stages.forEach { stage ->
+            val stageContext = if (stage.name == "Researcher Agent") {
+                "$previousContext\n\n$liveResearchContext"
+            } else previousContext
             val response = geminiClient.generateText(
                 apiKey = apiKey,
                 modelId = preferences.geminiModelId,
                 systemPrompt = stage.instruction + " Respond in clear Bengali when the mission is written in Bengali; otherwise match the mission language. Be precise and do not fabricate completed actions.",
-                userPrompt = "Mission brief and prior agent handoff:\n\n$previousContext\n\nYour role: ${stage.name}. Produce your stage output and handoff.",
+                userPrompt = "Mission brief and prior agent handoff:\n\n$stageContext\n\nYour role: ${stage.name}. Produce your stage output and handoff.",
                 imageUri = null
             ).getOrThrow().trim()
             require(response.isNotBlank()) { "${stage.name} returned an empty result." }
