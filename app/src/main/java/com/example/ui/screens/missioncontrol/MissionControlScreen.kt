@@ -133,6 +133,14 @@ fun MissionControlScreen(
         WebResearchScreen(onBack = { selectedPageId = "dashboard" })
         return
     }
+    if (selectedPageId == "memory") {
+        MissionMemoryScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
+    if (selectedPageId == "analytics") {
+        MissionAnalyticsScreen(onBack = { selectedPageId = "dashboard" })
+        return
+    }
     val query = searchQuery.trim()
     val filteredPages = remember(query) {
         if (query.isBlank()) missionControlPages
