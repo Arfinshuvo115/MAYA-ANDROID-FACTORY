@@ -14,6 +14,7 @@ import com.example.domain.model.MayaPersona
 import com.example.domain.model.ResponseLength
 import com.example.domain.model.ThemeMode
 import com.example.domain.model.UserPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +36,20 @@ class SettingsViewModel(
 
     private val _keyStatus = MutableStateFlow<GeminiKeyStatus>(GeminiKeyStatus.Idle)
     val keyStatus: StateFlow<GeminiKeyStatus> = _keyStatus.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            try {
+                preferencesRepository.migrateLegacyApiKeys()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _keyStatus.value = GeminiKeyStatus.Invalid(
+                    "Secure API key migration failed. Existing legacy settings were preserved; retry after checking device security."
+                )
+            }
+        }
+    }
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { preferencesRepository.setThemeMode(mode) }
